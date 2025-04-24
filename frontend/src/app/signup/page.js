@@ -53,18 +53,14 @@ const SignUp = () => {
 
     return (
         <div className="relative min-h-screen bg-gray-100 flex items-center justify-center">
-            {/* Background Image */}
-            <div 
-                className="absolute inset-0 z-0"
-                style={{
-                    backgroundColor: '#1e293b',
-                    position: 'fixed',
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0, 
-                }}
-            ></div>
+        {/* Background */}
+        <div 
+            className="absolute 
+                inset-0 
+                w-full 
+                animated-background 
+                bg-gradient-to-bl 
+                from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
 
             {/* Form Sign Up */}
             <div className="text-gray-800 relative z-20 w-full max-w-md bg-white p-8 rounded-lg shadow-lg mx-4">
