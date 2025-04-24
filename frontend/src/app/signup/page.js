@@ -52,15 +52,15 @@ const SignUp = () => {
     };
 
     return (
-        <div className="relative min-h-screen bg-gray-100 flex items-center justify-center">
-        {/* Background */}
-        <div 
-            className="absolute 
+
+        //Main Div + Background
+        <div className="absolute
                 inset-0 
                 w-full 
                 animated-background 
-                bg-gradient-to-bl 
-                from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
+                bg-linear-to-tl
+                from-gray-800 via-neutral-800 to-indigo-800 
+                flex items-center justify-center">
 
             {/* Form Sign Up */}
             <div className="text-gray-800 relative z-20 w-full max-w-md bg-white p-8 rounded-lg shadow-lg mx-4">
@@ -109,7 +109,7 @@ const SignUp = () => {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                            className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
                     </div>
 

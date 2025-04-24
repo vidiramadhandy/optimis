@@ -24,7 +24,7 @@ const Predict = () => {
 
     // Validasi jika ada input kosong
     if (inputs.some(input => input === '') || reflectance === '' || snr === '' || loss === '') {
-      alert("Please fill out all the inputs.");
+      alert("Silakan lengkapi semua input.");
       return;
     }
 
@@ -37,7 +37,7 @@ const Predict = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-animation">
+    <div className="relative min-h-screen flex flex-col justify-between bg-gradient-animation">
       <Navbar />
       <div
         className="absolute inset-0 z-0"
@@ -54,17 +54,17 @@ const Predict = () => {
         }}
       ></div>
 
-      <div className="sm:text-4xl md:text-6xl lg:text-7xl text-white font-bold mt-30 text-center relative z-20">
+      <div className="sm:text-4xl md:text-6xl lg:text-7xl mt-64 text-white font-bold text-center relative z-20">
         <h1>Predict Your Fiber Optic Network</h1>
       </div>
 
-      <div className="absolute inset-0 w-full mt-30 animated-background bg-gradient-to-bl from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
+      <div className="absolute inset-0 w-full mt-56 animated-background bg-gradient-to-tl from-gray-800 via-neutral-800 to-indigo-800 z-0"></div>
 
       {/* Kondisi untuk menampilkan input manual atau AltPage */}
       {isAltPageVisible ? (
         <AltPage /> // Komponen untuk upload CSV
       ) : (
-        <div className="text-black relative z-20 w-full lg:w-2/3 bg-white p-4 rounded-lg shadow-lg mx-auto my-8">
+        <div className="text-black relative z-20 w-full lg:w-2/3 bg-white py-4 px-8 rounded-lg shadow-lg mx-auto my-8">
           <h2 className="text-3xl font-bold mb-2 text-left">Input</h2>
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-3 gap-6">
@@ -91,7 +91,7 @@ const Predict = () => {
                 <label htmlFor="reflectance" className="block text-lg font-medium text-gray-700">
                   Reflectance
                 </label>
-                <input 
+                <input
                   type="number"
                   id="reflectance"
                   value={reflectance}
@@ -106,7 +106,7 @@ const Predict = () => {
                 <label htmlFor="snr" className="block text-lg font-medium text-gray-700">
                   SNR
                 </label>
-                <input 
+                <input
                   type="number"
                   id="snr"
                   value={snr}
@@ -121,7 +121,7 @@ const Predict = () => {
                 <label htmlFor="loss" className="block text-lg font-medium text-gray-700">
                   Loss
                 </label>
-                <input 
+                <input
                   type="number"
                   id="loss"
                   value={loss}
@@ -132,12 +132,15 @@ const Predict = () => {
               </div>
             </div>
 
-            <button
-              type="submit"
-              className="w-full py-3 mt-4 bg-green-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-2xl cursor-pointer"
-            >
-              Predict!
-            </button>
+            {/* Button Predict centered */}
+            <div className="flex justify-center mt-4">
+              <button
+                type="submit"
+                className="w-1/4 p-3 bg-green-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-2xl cursor-pointer"
+              >
+                Predict!
+              </button>
+            </div>
           </form>
         </div>
       )}
