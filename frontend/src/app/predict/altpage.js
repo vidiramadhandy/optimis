@@ -6,13 +6,16 @@ import ExcelJS from 'exceljs'; // Import exceljs
 import Navbar from '../../components/navbar';
 
 const AltPage = () => {
-  const [excelData, setExcelData] = useState(null);
+  const [excelData, setExcelData] = useState(null); // Menyimpan data Excel yang di-upload
+  const [uploadedFileName, setUploadedFileName] = useState(""); // Menyimpan nama file yang di-upload
   const router = useRouter();
 
+  // Fungsi untuk menangani file Excel yang di-upload
   const handleFileUpload = (e) => {
     const file = e.target.files[0]; // Ambil file yang dipilih
-    const reader = new FileReader();
+    setUploadedFileName(file.name); // Menyimpan nama file yang di-upload
 
+    const reader = new FileReader();
     reader.onload = async (evt) => {
       const buffer = evt.target.result;
       const workbook = new ExcelJS.Workbook();
@@ -48,6 +51,13 @@ const AltPage = () => {
     router.push('/results');
   };
 
+  // Fungsi untuk menghapus file yang sudah di-upload dan reset ke state awal
+  const handleRemoveFile = () => {
+    setExcelData(null); // Reset data Excel
+    setUploadedFileName(""); // Reset nama file
+    document.getElementById('fileInput').value = ""; // Menghapus input file yang terlihat di UI
+  };
+
   return (
     <div className="relative min-h-screen bg-gradient-animation">
       <Navbar />
@@ -63,9 +73,6 @@ const AltPage = () => {
         bottom: 0
       }}></div>
 
-      <div className="sm:text-4xl md:text-6xl lg:text-7xl text-white font-bold text-center relative z-20">
-        <h1>Predict Your Fiber Optic Network</h1>
-      </div>
 
       <div className="absolute inset-0 w-full mt-30 animated-background bg-gradient-to-bl from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
 
@@ -76,23 +83,25 @@ const AltPage = () => {
         <form onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 gap-6">
             {/* Drag-and-drop area */}
-            <div className="cursor-pointer border-2 border-dashed border-gray-500 p-6 text-center rounded-lg mb-4">
+            <div className="cursor-pointer border-2 border-dashed border-gray-500 p-6 text-center rounded-lg mb-4 flex items-center justify-between">
               <input
+                id="fileInput"
                 type="file"
                 accept=".xlsx, .xls"
                 onChange={handleFileUpload}
                 className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
               />
-              <p>Drag and drop an Excel file here, or click to select one.</p>
+              <span className="ml-2 text-sm">{uploadedFileName}</span>
+              {uploadedFileName && (
+                <button
+                  type="button"
+                  onClick={handleRemoveFile}
+                  className="ml-4 p-2 bg-red-500 text-white rounded-md hover:bg-red-700"
+                >
+                  <img src="/delete.svg" alt="Delete Icon" className="w-6 h-6" /> {/* Ikon delete */}
+                </button>
+              )}
             </div>
-
-            {/* Tampilkan data Excel yang sudah diproses
-            {excelData && (
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Excel Data Preview:</h3>
-                <pre className="bg-gray-100 p-4 rounded-lg overflow-auto">{JSON.stringify(excelData, null, 2)}</pre>
-              </div>
-            )} */}
 
             {/* Submit Button */}
             <button
