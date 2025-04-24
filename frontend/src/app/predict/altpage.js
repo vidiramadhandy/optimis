@@ -59,7 +59,7 @@ const AltPage = () => {
   };
 
   return (
-    <div className="relative min-h-screen bg-gradient-animation">
+    <div className="relative min-h-screen bg-gradient-animation flex flex-col">
       <Navbar />
       <div className="absolute inset-0 z-0" style={{
         backgroundImage: "url('/predictbg.jpg')",
@@ -73,11 +73,9 @@ const AltPage = () => {
         bottom: 0
       }}></div>
 
-
       <div className="absolute inset-0 w-full mt-30 animated-background bg-gradient-to-bl from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
 
-      {/* Form Upload Excel dengan dua opsi: button atau drag-and-drop */}
-      <div className="text-black relative z-20 w-full lg:w-2/3 bg-white p-4 rounded-lg shadow-lg mx-auto my-8">
+      <div className="text-black relative z-20 w-full lg:w-2/3 bg-white p-4 rounded-lg shadow-lg mx-auto my-8 flex flex-col">
         <h2 className="text-3xl font-bold mb-2 text-left">Upload Excel File</h2>
 
         <form onSubmit={handleSubmit}>
@@ -104,12 +102,14 @@ const AltPage = () => {
             </div>
 
             {/* Submit Button */}
-            <button
-              type="submit"
-              className="w-full py-3 mt-4 bg-green-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-2xl cursor-pointer"
-            >
-              Predict!
-            </button>
+            <div className="flex justify-center mt-4">
+              <button
+                type="submit"
+                className="w-1/4 py-3 mt-4 bg-green-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-2xl cursor-pointer"
+              >
+                Predict!
+              </button>
+            </div>
           </div>
         </form>
       </div>

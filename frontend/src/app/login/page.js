@@ -61,10 +61,13 @@ const Login = () => {
       ></div>
 
       {/* Aksen Biru di Sisi Kanan, di belakang form */}
-      <div className="absolute inset-0 right-0 ml-auto w-4/10 bg-gray-800 bg-opacity-50 z-10"></div>
+      <div className="absolute inset-0 w-full lg:w-4/10 md:w-2/3 right-0 ml-auto
+                animated-background 
+                bg-linear-to-tl
+                from-pink-800 via-violet-800 to-gray-800 z-10"></div>
 
       {/* Form Login, diposisikan di sebelah kanan */}
-      <div className="text-gray-800 relative z-20 w-full lg:w-1/3 sm:w-1/2 bg-white p-8 rounded-lg shadow-lg ml-auto mr-10">
+      <div className="text-gray-800 relative z-20 w-full justify-end lg:w-1/3 sm:w-1/2 bg-white p-8 rounded-lg shadow-lg ml-auto mr-10">
         <h2 className="text-3xl font-bold mb-6 text-center">Login to OptiPredict</h2>
         
         {/* Menampilkan pesan error jika login gagal */}
