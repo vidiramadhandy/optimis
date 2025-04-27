@@ -75,7 +75,7 @@ const AltPage = () => {
 
       <div className="absolute inset-0 w-full mt-30 animated-background bg-gradient-to-bl from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
 
-      <div className="text-black relative z-20 w-full lg:w-2/3 bg-white p-4 rounded-lg shadow-lg mx-auto my-8 flex flex-col">
+      <div className="text-black relative z-20 w-full lg:w-2/3 bg-white p-4 rounded-lg shadow-lg mx-auto my-8">
         <h2 className="text-3xl font-bold mb-2 text-left">Upload Excel File</h2>
 
         <form onSubmit={handleSubmit}>
@@ -112,6 +112,16 @@ const AltPage = () => {
             </div>
           </div>
         </form>
+      </div>
+
+      {/* Tombol untuk memilih antara input manual atau upload CSV */}
+      <div className="flex justify-center mt-6">
+        <button
+          onClick={() => router.push('/predict')}
+          className="bg-blue-500 text-white px-6 py-2 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-300 ease-in-out"
+        >
+          Use Manual Input
+        </button>
       </div>
     </div>
   );
