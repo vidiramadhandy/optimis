@@ -58,7 +58,7 @@ export default function Home() {
             <div className="text-lg text-white leading-relaxed max-w-5xl mx-auto ml-0">
               <ReactLoremIpsum />
               <br />
-              <ReactLoremIpsum />
+              <img src="public/topology.jpg" alt="image1" />
               <br />
               <br />
               With OptiPredict, you get the insights you need to stay ahead of the competition and make smarter, data-driven choices that can propel your business to the next level.
