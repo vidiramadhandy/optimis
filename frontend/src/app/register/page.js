@@ -1,84 +1,76 @@
-'use client';
+'use client';  // Menandakan bahwa ini adalah client component
 
+import InputError from '@/components/InputError'
+import Link from 'next/link'
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';  // Gunakan useRouter dari next/navigation untuk Next.js 13+
-import axios from 'axios';
+import { useAuth} from '@/hooks/auth';
+import { useRouter } from 'next/navigation';
 
 const SignUp = () => {
+    const { register } = useAuth({
+        middleware: 'guest',
+        redirectIfAuthenticated: '/home',
+    })
+
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
-    const [error, setError] = useState('');
+    const [passwordConfirmation, setPasswordConfirmation] = useState('');
+    const [errors, setErrors] = useState('');
     const [loading, setLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const router = useRouter();  // Inisialisasi useRouter untuk navigasi
 
-    const apiUrl = 'http://localhost:8000/api';  // Ganti dengan URL API backend Anda
+    const submitForm = event => {
+        event.preventDefault()
 
-    const [isClient, setIsClient] = useState(false);
+        register({
+            name,
+            email,
+            password,
+            password_confirmation: passwordConfirmation,
+            setErrors,
+        });
 
-    // Pastikan kode berikut hanya dijalankan di sisi klien
-    useEffect(() => {
-        setIsClient(true);  // Menandakan bahwa kita sudah di sisi klien
-    }, []);
+        setSuccessMessage('User succesfuly registered!');
 
-    const getCSRFToken = () => {
-        // Ambil CSRF token dari cookie jika sudah di sisi klien
-        const match = document.cookie.match(new RegExp('(^| )XSRF-TOKEN=([^;]+)'));
-        return match ? match[2] : '';
-    };
+        router.push('/login');
+    }
 
-    // Mengatur CSRF token di header hanya jika sudah di sisi klien
-    useEffect(() => {
-        if (isClient) {
-            const csrfToken = getCSRFToken();
-            axios.defaults.headers.common['X-XSRF-TOKEN'] = csrfToken;
-        }
-    }, [isClient]);
+    // const handleSubmit = async (e) => {
+    //     e.preventDefault();
+    //     setError('');
+    //     setLoading(true);
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setError('');
-        setLoading(true);
+    //     try {
+    //         //Kirim request POST ke API
+    //         const response = await axios.post('/register', { name, email, password });
 
-        try {
-            // Mengirimkan permintaan POST untuk registrasi
-            const response = await axios.post(`${apiUrl}/register`, { name, email, password });
-            
-            // Reset form setelah registrasi berhasil
-            setEmail('');
-            setPassword('');
-            setName('');
-            
-            // Set success message
-            setSuccessMessage('User successfully created!');
-            
-            // Tampilkan alert setelah user berhasil registrasi
-            alert('User successfully created!');
+    //         //Reset form setelah berhasil registrasi
+    //         setEmail('');
+    //         setPassword('');
+    //         setName('');
 
-            // Navigasi ke halaman login setelah registrasi berhasil
-            router.push('/login');
-        } catch (e) {
-            // Menangani error dan menampilkan pesan yang sesuai
-            if (e.response && e.response.data) {
-                setError(e.response.data.message || 'Something went wrong. Please try again.');
-            } else {
-                setError('Something went wrong. Please try again.');
-            }
-            console.log(e);
-        } finally {
-            setLoading(false);
-        }
-    };
+    //         //Tampilkan alert
+    //         alert('User successfully created!');
+    //         router.push('/login');
+    //     }catch (error) {
+    //         setError('Something went wrong. Please try again.');
+    //         console.log(error);
+    //     }finally {
+    //         setLoading(false);
+    //     }
+    // };
 
     return (
         <div className="absolute inset-0 w-full animated-background bg-linear-to-tl from-gray-800 via-neutral-800 to-indigo-800 flex items-center justify-center">
             <div className="text-gray-800 relative z-20 w-full max-w-md bg-white p-8 rounded-lg shadow-lg mx-4">
-                <div className="text-4xl font-bold mb-4 text-center">
+                <div className="text-3xl font-bold mb-2 text-center">
                     <h1>Sign Up for OptiPredict</h1>
                 </div>
-                <form onSubmit={handleSubmit}>
-                    <div className="mb-6">
+
+                <form onSubmit={submitForm}>
+                    <div className="mt-2">
                         <label htmlFor="name" className="block text-lg font-medium text-gray-700">
                             Name
                         </label>
@@ -90,9 +82,11 @@ const SignUp = () => {
                             required
                             className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
+
+                        <InputError messages={errors.name} className="mt-2" />
                     </div>
 
-                    <div className="mb-6">
+                    <div className="mt-2">
                         <label htmlFor="email" className="block text-lg font-medium text-gray-700">
                             Email
                         </label>
@@ -104,9 +98,11 @@ const SignUp = () => {
                             required
                             className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
+
+                        <InputError messages={errors.email} className="mt-2" />
                     </div>
 
-                    <div className="mb-6">
+                    <div className="mt-2">
                         <label htmlFor="password" className="block text-lg font-medium text-gray-700">
                             Password
                         </label>
@@ -118,9 +114,30 @@ const SignUp = () => {
                             required
                             className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
+
+                        <InputError messages={errors.password} className="mt-2" />
                     </div>
 
-                    {error && <div className="text-red-500 text-sm mb-4">{error}</div>}
+                    <div className="mt-2">
+                        <label htmlFor="passwordConfirmation" className="block text-lg font-medium text-gray-700">
+                            Confirm Password
+                        </label>
+                        <input 
+                            type="password" 
+                            id="password"
+                            value={passwordConfirmation}
+                            onChange={(e) => setPasswordConfirmation(e.target.value)}
+                            required
+                            className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
+                        />
+
+                        <InputError
+                            messages={errors.password_confirmation}
+                            className="mt-2"
+                        />
+                    </div>
+
+                    {/* {error && <div className="text-red-500 text-sm mb-4">{error}</div>} */}
 
                     <button
                         type="submit"
@@ -132,10 +149,13 @@ const SignUp = () => {
 
                     {successMessage && <div className="text-green-500 text-sm mt-4">{successMessage}</div>}
 
-                    <p className="mt-4 text-black text-center text-sm">
-                        Already have an account? 
-                        <a href="/login" className="text-blue-400 hover:text-blue-800">Log in here</a>
-                    </p>
+                    <div className="flex items-center justify-start mt-4">
+                        <Link
+                            href="/login"
+                            className="underline text-sm text-gray-600 hover:text-gray-900">
+                             Already registered?
+                        </Link>
+                    </div>
                 </form>
             </div>
         </div>

@@ -6,9 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\Rules\Password;
-use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Validation\Rules;
 
 class RegisteredUserController extends Controller
 {
@@ -17,33 +18,25 @@ class RegisteredUserController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
-    public function store(Request $request)
+    public function store(Request $request): Response
     {
-        // Validasi input dari form registrasi
-        $validated = $request->validate([
+        $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
-            'password' => ['required', 'string', 'confirmed', Password::defaults()],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:'.User::class],
+            'password' => ['required', 'confirmed', Rules\Password::defaults()],
         ]);
 
-        // Membuat pengguna baru di database
         $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => Hash::make($request->string('password')),
         ]);
 
-        // Meng-trigger event Registered (opsional)
         event(new Registered($user));
 
-        // Buat token untuk pengguna setelah registrasi
-        $token = $user->createToken('YourAppName')->plainTextToken;
+        //Auth::login($user);
 
-        // Mengembalikan respons dengan token dan data pengguna
-        return response()->json([
-            'message' => 'User registered successfully.',
-            'token' => $token,  // Menyertakan token dalam respons
-            'user' => $user,
-        ], 201);
+        //return response()->noContent();
+        return response()->json(['user' => $user], 201);
     }
 }
