@@ -3,6 +3,7 @@
 import ReactLoremIpsum from 'react-lorem-ipsum';
 import Navbar from '../../components/navbar';
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 
 export default function Home() {
   const [scrollY, setScrollY] = useState(0);
@@ -56,16 +57,26 @@ export default function Home() {
 
             {/* Teks Penjelasan */}
             <div className="text-lg text-white leading-relaxed max-w-5xl mx-auto ml-0">
-              <ReactLoremIpsum />
+              OptiPredict hadir sebagai solusi inovatif berbasis machine learning untuk pemeliharaan dan manajemen gangguan pada jaringan optik. Dengan memanfaatkan teknologi machine learning yang terintregrasi, OptiPredict memungkinkan pengguna menganalisis data otomatis serta memprediksi berbagai gangguan dengan tingkat akurasi yang tinggi. 
+              <br/>
+              <br/>
+              Topologi Dasar OptiPredict:
+              <br/>
+              <Image 
+                src="/topology.jpg" 
+                alt="Image1" 
+                width={1000} 
+                height={600} 
+              />
               <br />
-              <img src="public/topology.jpg" alt="image1" />
+              <br />
+              Penjelasan Topologi
               <br />
               <br />
               With OptiPredict, you get the insights you need to stay ahead of the competition and make smarter, data-driven choices that can propel your business to the next level.
               <br />
               <br />
-              Our team of experts works tirelessly to develop and refine the algorithms that power our platform, ensuring that you're always working with the most accurate and up-to-date data available.
-              From predictive analytics to forecasting, OptiPredict is designed to help you navigate the complexities of today's fast-paced business world.
+              Platform ini didukung dengan antarmuka pengguna yang responsif dan memungkinkan akses cepat pemantauan kondisi jaringan optik dengan laporan yang mudah dipahami. Fitur manajemen data dan pelaporan memungkinkan pengguna untuk menyimpan riwayat prediksi dan mengoptimalkan proses pengambilan keputusan terkait pemeliharaan jaringan, sehingga mencegah kerusakan sebelum terjadi. 
             </div>
           </div>
         </main>
