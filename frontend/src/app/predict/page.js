@@ -7,9 +7,7 @@ import AltPage from './altpage'; // Mengimpor komponen AltPage
 
 const Predict = () => {
   const [inputs, setInputs] = useState(Array(30).fill(''));
-  const [reflectance, setReflectance] = useState('');
   const [snr, setSnr] = useState('');
-  const [loss, setLoss] = useState('');
   const [isAltPageVisible, setIsAltPageVisible] = useState(false); // State untuk kontrol tampilan
   const router = useRouter();
 
@@ -23,12 +21,13 @@ const Predict = () => {
     e.preventDefault();
 
     // Validasi jika ada input kosong
-    if (inputs.some(input => input === '') || reflectance === '' || snr === '' || loss === '') {
+    if (inputs.some(input => input === '') || inputs.some(input => input < 1 || input > 10) || snr === '' || snr < 0 || snr > 30
+  ) {
       alert("Silakan lengkapi semua input.");
       return;
     }
 
-    console.log(inputs, reflectance, snr, loss); // Cetak seluruh input di konsol
+    console.log(inputs, snr); // Cetak seluruh input di konsol
     router.push('/results');
   };
 
@@ -81,25 +80,12 @@ const Predict = () => {
                     value={inputs[i]}
                     onChange={(e) => handleInputChange(i, e.target.value)}
                     required
+                    min="1"
+                    max="10"
                     className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                   />
                 </div>
               ))}
-
-              {/* Input Reflectance */}
-              <div className="mb-2">
-                <label htmlFor="reflectance" className="block text-lg font-medium text-gray-700">
-                  Reflectance
-                </label>
-                <input
-                  type="number"
-                  id="reflectance"
-                  value={reflectance}
-                  onChange={(e) => setReflectance(e.target.value)}
-                  required
-                  className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
-                />
-              </div>
 
               {/* Input SNR */}
               <div className="mb-2">
@@ -112,21 +98,8 @@ const Predict = () => {
                   value={snr}
                   onChange={(e) => setSnr(e.target.value)}
                   required
-                  className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
-                />
-              </div>
-
-              {/* Input Loss */}
-              <div className="mb-2">
-                <label htmlFor="loss" className="block text-lg font-medium text-gray-700">
-                  Loss
-                </label>
-                <input
-                  type="number"
-                  id="loss"
-                  value={loss}
-                  onChange={(e) => setLoss(e.target.value)}
-                  required
+                  min="0"
+                  max="30"
                   className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                 />
               </div>
