@@ -115,8 +115,8 @@ const Navbar = () => {
 
       {/* Logo di kanan */}
       <div className="flex items-center space-x-4 ml-auto">
-        <img src="/fte.png" alt="Logo 1" className="h-6" />
-        <img src="/telyu.png" alt="Logo 2" className="h-6" />
+      <Link href="https://telkomuniversity.ac.id/en/school-of-electrical-engineering/?lang=en" target="_blank"><img src="/fte.png" alt="Logo FTE" className="h-6" /></Link>
+        <Link href="https://telkomuniversity.ac.id/en" target="_blank"><img src="/telyu.png" alt="Logo Telyu" className="h-6" /></Link>
       </div>
     </nav>
   );
