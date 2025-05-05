@@ -37,6 +37,9 @@ class RegisteredUserController extends Controller
         //Auth::login($user);
 
         //return response()->noContent();
-        return response()->json(['user' => $user], 201);
+        return response([
+            'user' => $user,
+            'token' => $user->createToken('OptiPredict')->plainTextToken
+        ], 201);
     }
 }

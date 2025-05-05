@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { useAuth} from '@/hooks/auth';
 import { useRouter } from 'next/navigation';
 
-const SignUp = () => {
+const Register = () => {
     const { register } = useAuth({
         middleware: 'guest',
         redirectIfAuthenticated: '/home',
@@ -21,6 +21,10 @@ const SignUp = () => {
     const [successMessage, setSuccessMessage] = useState('');
     const router = useRouter();  // Inisialisasi useRouter untuk navigasi
 
+    const setCsrfToken = async () => {
+        await axios.get('/sanctum/csrf-cookie');
+    };
+    
     const submitForm = event => {
         event.preventDefault()
 
@@ -162,4 +166,4 @@ const SignUp = () => {
     );
 };
 
-export default SignUp;
+export default Register;
