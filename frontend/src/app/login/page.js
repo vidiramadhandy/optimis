@@ -1,24 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/hooks/auth';
+import { redirect, useRouter } from 'next/navigation';
 import AuthSessionStatus from '../AuthSessionStatus';
+import { useAuth } from '@/hooks/auth';
 
 const Login = () => {
   const router = useRouter();
 
-  // Mendapatkan fungsi login dan user dari useAuth
-  const { login, user } = useAuth({
+  const { login } = useAuth({
     middleware: 'guest',
     redirectIfAuthenticated: '/home',
-  });
+  })
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [shouldRemember, setShouldRemember] = useState(false);  // Untuk remember me
+  const [shouldRemember, setShouldRemember] = useState(false); // Untuk remember me
   const [errors, setErrors] = useState([]); // Menampilkan error jika login gagal
   const [status, setStatus] = useState(null); // Status untuk menampilkan pesan status
+  const [loading, setLoading] = useState(false); // Untuk menangani status loading
 
   // Menggunakan useEffect untuk menangani status reset
   useEffect(() => {
@@ -27,32 +27,63 @@ const Login = () => {
     } else {
       setStatus(null);
     }
+  }, [router.query, errors]);
 
-    // Debugging: Pastikan user berhasil login
-    console.log('User data:', user);
-
-    // Jika user sudah login, lakukan redireksi ke halaman home
-    if (user) {
-      router.push('/home');
-    }
-  }, [router.query, errors, user]);
+  // Set CSRF token untuk Laravel Sanctum
+  const setCsrfToken = async () => {
+    await fetch('http://localhost:8000/sanctum/csrf-cookie', {
+      method: 'GET',
+      credentials: 'include',
+    });
+  };
 
   // Fungsi untuk submit form login
   const submitForm = async (event) => {
     event.preventDefault();
-
-    setErrors([]);  // Reset errors sebelum melakukan login
-    setStatus(null);  // Reset status
-
-    // Menggunakan login dari useAuth
-    login({
-      email,
-      password,
-      remember: shouldRemember,
-      setErrors,
-      setStatus,
-    });
+  
+    setErrors([]); // Reset errors sebelum melakukan login
+    setStatus(null); // Reset status
+    setLoading(true);
+  
+    // Panggil setCsrfToken sebelum mengirim permintaan login
+    await setCsrfToken();
+  
+    try {
+      // Kirim permintaan POST ke API login
+      const response = await fetch('http://localhost:8000/api/user/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          remember: shouldRemember,
+        }),
+        credentials: 'include', // Kirimkan cookie bersama permintaan
+      });
+  
+      if (!response.ok) {
+        // Jika status bukan 200, anggap sebagai error
+        const errorText = await response.text();  // Mengambil respons sebagai teks
+        setErrors([`Error: ${response.status} - ${errorText}`]); // Tampilkan status code dan teks error
+        return;
+      }
+  
+      // Jika status code OK, coba parse JSON
+      //const data = await response.json();
+  
+      // Menangani respons dari server
+      localStorage.setItem('auth_token', data.token); // Simpan token di localStorage
+      router.push('/home');
+    } catch (error) {
+      console.error("Fetch error:", error);
+      setErrors(['An error occurred. Please try again.']);
+    }
+  
+    setLoading(false);
   };
+  
 
   return (
     <div className="min-h-screen flex items-center justify-start bg-gray-100 relative">
@@ -136,13 +167,13 @@ const Login = () => {
             type="submit"
             className="w-full py-3 mt-4 bg-green-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
           >
-            Login
+            {loading ? 'Logging In...' : 'Login'}
           </button>
         </form>
 
         <p className="mt-4 text-center text-sm text-gray-500">
           Don't have an account?{' '}
-          <a href="/signup" className="text-blue-400 hover:underline hover:text-blue-800 cursor-pointer">
+          <a href="/register" className="text-blue-400 hover:underline hover:text-blue-800 cursor-pointer">
             Sign up here
           </a>
         </p>
