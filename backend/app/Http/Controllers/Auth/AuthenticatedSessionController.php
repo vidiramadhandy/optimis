@@ -35,4 +35,8 @@ class AuthenticatedSessionController extends Controller
 
         return response()->noContent();
     }
+
+    public function authentication(Request $request){
+        return redirect()->route('dashboard');
+    }
 }
