@@ -58,7 +58,16 @@ const Predict = () => {
       </div>
 
       <div className="absolute inset-0 w-full mt-56 animated-background bg-gradient-to-tl from-gray-800 via-neutral-800 to-indigo-800 z-0"></div>
-
+      {/* Hyperlink untuk memilih antara input manual atau upload CSV */}
+      <div className="text-center my-4 relative z-20">
+        <a
+          href="#"
+          onClick={toggleAltPage}
+          className="text-white hover:text-blue-500 transition-all duration-500 ease-in-out font-semibold text-xl"
+        >
+          {isAltPageVisible ? 'Use Manual Input' : 'Or Upload CSV'}
+        </a>
+      </div>
       {/* Kondisi untuk menampilkan input manual atau AltPage */}
       {isAltPageVisible ? (
         <AltPage /> // Komponen untuk upload CSV
@@ -117,17 +126,6 @@ const Predict = () => {
           </form>
         </div>
       )}
-
-      {/* Hyperlink untuk memilih antara input manual atau upload CSV */}
-      <div className="text-center my-4 relative z-20">
-        <a
-          href="#"
-          onClick={toggleAltPage}
-          className="text-blue-500 hover:text-blue-700 transition-all duration-500 ease-in-out font-semibold text-xl"
-        >
-          {isAltPageVisible ? 'Use Manual Input' : 'Or Upload CSV'}
-        </a>
-      </div>
     </div>
   );
 };
