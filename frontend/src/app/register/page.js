@@ -1,70 +1,57 @@
-'use client';  // Menandakan bahwa ini adalah client component
+'use client'; // Menandakan bahwa ini adalah client component
 
-import InputError from '@/components/InputError'
-import Link from 'next/link'
-import { useState, useEffect } from 'react';
-import { useAuth} from '@/hooks/auth';
+import InputError from '@/components/InputError';
+import Link from 'next/link';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const Register = () => {
-    const { register } = useAuth({
-        middleware: 'guest',
-        redirectIfAuthenticated: '/home',
-    })
-
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [passwordConfirmation, setPasswordConfirmation] = useState('');
-    const [errors, setErrors] = useState('');
+    const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
     const router = useRouter();  // Inisialisasi useRouter untuk navigasi
 
-    const setCsrfToken = async () => {
-        await axios.get('/sanctum/csrf-cookie');
+    const submitForm = async (event) => {
+        event.preventDefault();
+
+        // Validasi password confirmation
+        if (password !== passwordConfirmation) {
+            setErrors({ password_confirmation: 'Passwords do not match' });
+            return;
+        }
+
+        setLoading(true);
+        setErrors({});  // Clear previous errors
+        setSuccessMessage('');  // Clear previous success message
+
+        try {
+            const response = await fetch('http://localhost:8000/users', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                setSuccessMessage('User successfully registered!');
+                router.push('/login'); // Redirect to login page after registration
+            } else {
+                setErrors(data.error ? { general: data.error } : { general: 'Something went wrong. Please try again.' });
+            }
+        } catch (error) {
+            console.error('Error during registration:', error);
+            setErrors({ general: 'Something went wrong. Please try again.' });
+        } finally {
+            setLoading(false);
+        }
     };
-    
-    const submitForm = event => {
-        event.preventDefault()
-
-        register({
-            name,
-            email,
-            password,
-            password_confirmation: passwordConfirmation,
-            setErrors,
-        });
-
-        setSuccessMessage('User succesfuly registered!');
-
-        router.push('/login');
-    }
-
-    // const handleSubmit = async (e) => {
-    //     e.preventDefault();
-    //     setError('');
-    //     setLoading(true);
-
-    //     try {
-    //         //Kirim request POST ke API
-    //         const response = await axios.post('/register', { name, email, password });
-
-    //         //Reset form setelah berhasil registrasi
-    //         setEmail('');
-    //         setPassword('');
-    //         setName('');
-
-    //         //Tampilkan alert
-    //         alert('User successfully created!');
-    //         router.push('/login');
-    //     }catch (error) {
-    //         setError('Something went wrong. Please try again.');
-    //         console.log(error);
-    //     }finally {
-    //         setLoading(false);
-    //     }
-    // };
 
     return (
         <div className="absolute inset-0 w-full animated-background bg-linear-to-tl from-gray-800 via-neutral-800 to-indigo-800 flex items-center justify-center">
@@ -86,7 +73,6 @@ const Register = () => {
                             required
                             className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
-
                         <InputError messages={errors.name} className="mt-2" />
                     </div>
 
@@ -102,7 +88,6 @@ const Register = () => {
                             required
                             className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
-
                         <InputError messages={errors.email} className="mt-2" />
                     </div>
 
@@ -118,7 +103,6 @@ const Register = () => {
                             required
                             className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
-
                         <InputError messages={errors.password} className="mt-2" />
                     </div>
 
@@ -128,20 +112,18 @@ const Register = () => {
                         </label>
                         <input 
                             type="password" 
-                            id="password"
+                            id="passwordConfirmation"
                             value={passwordConfirmation}
                             onChange={(e) => setPasswordConfirmation(e.target.value)}
                             required
                             className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                         />
-
-                        <InputError
-                            messages={errors.password_confirmation}
-                            className="mt-2"
-                        />
+                        <InputError messages={errors.password_confirmation} className="mt-2" />
                     </div>
 
-                    {/* {error && <div className="text-red-500 text-sm mb-4">{error}</div>} */}
+                    {errors.general && (
+                        <div className="text-red-500 text-sm mt-4">{errors.general}</div>
+                    )}
 
                     <button
                         type="submit"

@@ -1,7 +1,7 @@
 'use client'
 
+import { useAuth } from '@/hooks/useAuth'
 import Link from 'next/link'
-import { useAuth } from '@/hooks/auth'
 
 const LoginLinks = () => {
     const { user } = useAuth({ middleware: 'guest' })
