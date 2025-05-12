@@ -6,7 +6,7 @@ import Navbar from '../../components/navbar';
 import AltPage from './altpage'; // Mengimpor komponen AltPage
 
 const Predict = () => {
-  const [inputs, setInputs] = useState(Array(30).fill(''));
+  const [inputs, setInputs] = useState(Array(30).fill('0')); // Set nilai default '0' untuk P1-P30
   const [snr, setSnr] = useState('');
   const [isAltPageVisible, setIsAltPageVisible] = useState(false); // State untuk kontrol tampilan
   const router = useRouter();
@@ -74,6 +74,8 @@ const Predict = () => {
       ) : (
         <div className="text-black relative z-20 w-full lg:w-2/3 bg-white py-4 px-8 rounded-lg shadow-lg mx-auto my-8">
           <h2 className="text-3xl font-bold mb-2 text-left">Input</h2>
+          <p>P (Range from 0-10)</p>
+          <p className="mb-2">SNR (Range from 0-30)</p>
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-3 gap-6">
               {/* Input P1-P30 */}
@@ -91,7 +93,9 @@ const Predict = () => {
                     required
                     min="1"
                     max="10"
-                    className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
+                    placeholder="0" // Placeholder untuk angka 0
+                    className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out 
+                    ${inputs[i] === '0' ? 'text-gray-500' : 'text-black'}`} // Mengubah warna teks jika input masih 0
                   />
                 </div>
               ))}
@@ -109,7 +113,9 @@ const Predict = () => {
                   required
                   min="0"
                   max="30"
-                  className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
+                  placeholder="0"
+                  className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out
+                  ${snr === '0' ? 'text-gray-500' : 'text-black'}`}
                 />
               </div>
             </div>
