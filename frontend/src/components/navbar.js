@@ -104,7 +104,7 @@ const Navbar = () => {
                         ${user ? 'hover:bg-gray-600' : ''}`}
             onClick={user ? handleLogout : null}
           >
-            {user ? 'Logout' : <Link href="/login">Logout</Link>}
+            {user ? 'Logout' : <Link href="/login">Login</Link>}
           </div>
         </div>
       </div>

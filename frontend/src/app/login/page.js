@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import InputError from '@/components/InputError';
 import AuthSessionStatus from '../AuthSessionStatus'; // Komponen untuk menampilkan status
+import Loader from '@/components/loader';  // Import Loader component
 
 const Login = () => {
   const router = useRouter();
@@ -20,18 +21,17 @@ const Login = () => {
 
     setErrors({});  // Reset errors
     setStatus(null); // Reset status
-    setLoading(true);
+    setLoading(true);  // Set loading state to true
 
     // Validasi input form
     if (!email || !password) {
       setErrors({ general: "Please fill in all fields" });
-      setLoading(false);
+      setLoading(false);  // Set loading to false after validation fails
       return;
     }
 
     try {
-      // Kirim permintaan POST ke API login (Express.js)
-      const response = await fetch('http://localhost:8000/users/login', { // Perbaiki URL sesuai dengan rute yang benar
+      const response = await fetch('http://localhost:8000/api/users/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -41,12 +41,13 @@ const Login = () => {
           password,
           remember: shouldRemember,
         }),
+        credentials: 'include',  // Pastikan cookies (session_id) dikirim
       });
 
-      // Cek jika response status 200 OK
       if (!response.ok) {
         const errorText = await response.text();
-        setErrors({ general: `Error: ${response.status} - ${errorText}` });
+        const errorObject = JSON.parse(errorText);
+        setErrors({ general: errorObject.error });
         setLoading(false);
         return;
       }
@@ -55,12 +56,11 @@ const Login = () => {
       if (contentType && contentType.includes("application/json")) {
         const data = await response.json();
 
-        // Pastikan token diterima
-        if (data.token) {
-          localStorage.setItem('auth_token', data.token); // Simpan token di localStorage
+        // Jika login sukses, arahkan ke halaman home
+        if (data.message === 'Login successful') {
           router.push('/home'); // Redirect ke halaman home setelah login berhasil
         } else {
-          setErrors({ general: 'Token tidak ditemukan dalam respons' });
+          setErrors({ general: 'Unexpected response format.' });
         }
       } else {
         setErrors({ general: 'Unexpected response format. Expected JSON.' });
@@ -69,7 +69,7 @@ const Login = () => {
       console.error("Fetch error:", error);
       setErrors({ general: 'An error occurred. Please try again.' });
     } finally {
-      setLoading(false);
+      setLoading(false);  // Set loading to false once the request completes
     }
   };
 
@@ -80,9 +80,7 @@ const Login = () => {
         autoPlay
         loop
         muted
-        style={{
-          filter: 'brightness(0.5)',
-        }}
+        style={{ filter: 'brightness(0.5)' }}
       >
         <source src="/background.mp4" type="video/mp4" />
         Your browser does not support the video tag.
@@ -150,9 +148,13 @@ const Login = () => {
 
           <button
             type="submit"
-            className="w-full py-3 mt-4 bg-green-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
+            className="w-full py-3 mt-4 justify-center items-center flex bg-green-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-emerald-600 focus:outline-none focus:ring-2 focus:ring-green-500 cursor-pointer"
           >
-            {loading ? 'Logging In...' : 'Login'}
+            {loading ? (
+              <><Loader /> {/* Animasi Loader */}</>
+            ) : (
+              'Login'
+            )}
           </button>
         </form>
 
