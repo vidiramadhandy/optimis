@@ -31,6 +31,8 @@ const Login = () => {
     }
 
     try {
+      console.log('Attempting to login with:', email);  // Log email yang dikirim untuk login
+
       const response = await fetch('http://localhost:8000/api/users/login', {
         method: 'POST',
         headers: {
@@ -47,6 +49,7 @@ const Login = () => {
       if (!response.ok) {
         const errorText = await response.text();
         const errorObject = JSON.parse(errorText);
+        console.log('Login failed:', errorObject.error);  // Log error jika login gagal
         setErrors({ general: errorObject.error });
         setLoading(false);
         return;
@@ -55,12 +58,13 @@ const Login = () => {
       const contentType = response.headers.get("Content-Type");
       if (contentType && contentType.includes("application/json")) {
         const data = await response.json();
+        console.log('Login response data:', data);  // Log data response dari server
 
-        // Jika login sukses, arahkan ke halaman home
-        if (data.message === 'Login successful') {
+        if (data.message === "Login successful") {
+          console.log('Login successful! Redirecting to home...');
           router.push('/home'); // Redirect ke halaman home setelah login berhasil
         } else {
-          setErrors({ general: 'Unexpected response format.' });
+          setErrors({ general: 'Login failed, please try again' });
         }
       } else {
         setErrors({ general: 'Unexpected response format. Expected JSON.' });

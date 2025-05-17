@@ -66,6 +66,11 @@ const Navbar = () => {
     <nav
       className={`fixed top-10 left-0 right-0 mx-8 px-6 py-2 z-50 flex items-center justify-between bg-gray-800 bg-opacity-80 rounded-2xl shadow-xl transform transition-all duration-300 ease-in-out ${isHidden ? 'translate-y-20 opacity-0' : 'translate-y-0 opacity-100'}`}
     >
+      {/* Menampilkan "Welcome, {user.name}" sebelum menu */}
+      <div className="flex items-center gap-2 text-white text-lg">
+        {user ? `Welcome, ${user.name}` : ''}
+      </div>
+
       {/* Menu Toggle Button - Hamburger Icon */}
       <div
         className="relative"
@@ -82,6 +87,13 @@ const Navbar = () => {
           onMouseEnter={handleMouseEnter} // Menjaga dropdown tetap muncul saat hover pada dropdown
           onMouseLeave={handleMouseLeave} // Menyembunyikan dropdown saat pointer keluar dari dropdown
         >
+          {/* Menambahkan "Welcome, {user.name}" di dropdown */}
+          {user && (
+            <div className="text-white px-6 py-2 text-center">
+              Welcome, {user.name}
+            </div>
+          )}
+          
           {/* Navbar Items */}
           {navItems.map((item) => (
             <div
