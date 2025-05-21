@@ -1,13 +1,9 @@
-import Axios from 'axios'
+import axios from 'axios';
 
-const axios = Axios.create({
-    baseURL: process.env.NEXT_PUBLIC_BACKEND_URL,
-    headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'Content-Type': 'application/json',
-    },
-    withCredentials: true,
-    withXSRFToken: true
-})
+// Pastikan axios selalu mengirimkan cookies di setiap permintaan
+axios.defaults.withCredentials = true;  // Mengatur agar cookies selalu dikirim
 
-export default axios
+// Atur URL dasar axios
+axios.defaults.baseURL = 'http://localhost:5000';  // Sesuaikan dengan URL backend Anda
+
+export default axios;
