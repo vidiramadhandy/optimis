@@ -1,15 +1,27 @@
-const logout = async () => {
-  const response = await fetch('http://localhost:8000/api/logout', {
-    method: 'DELETE',
-    credentials: 'include',  // Kirimkan cookies (session_id)
-  });
+'use client';
 
-  const data = await response.json();
+import { useRouter } from 'next/navigation';
+import useAuth from '../lib/useAuth';
 
-  if (response.ok) {
-    alert('Logged out successfully');
-    router.push('/login');  // Redirect ke halaman login setelah logout
-  } else {
-    alert('Logout failed');
-  }
+const Logout = () => {
+  const { logout } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await logout();  // Panggil logout dari useAuth
+      router.push('/login');  // Redirect ke halaman login setelah logout
+    } catch (error) {
+      console.error('Logout gagal:', error);
+      alert('Logout gagal, coba lagi!');  // Menampilkan pesan error jika logout gagal
+    }
+  };
+
+  return (
+    <button onClick={handleLogout} className="flex items-left gap-2 w-full text-left px-6 py-2 transition-all duration-200 text-white p-2 rounded hover:bg-gray-600 hover:cursor-pointer">
+      Logout
+    </button>
+  );
 };
+
+export default Logout;
