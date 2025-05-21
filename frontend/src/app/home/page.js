@@ -1,4 +1,4 @@
-'use client';  // Menandakan ini adalah client component
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import Navbar from '../../components/navbar';

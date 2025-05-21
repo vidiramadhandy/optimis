@@ -1,11 +1,12 @@
+// File: backend/src/routes/userRoutes.js
 const express = require('express');
 const userController = require('../controllers/userController');
-const { verifyToken } = require('../middleware/auth');  // Mengimpor middleware verifyToken
+const { verifyToken } = require('../middleware/auth');
 
 const router = express.Router();
 
 // Semua rute memerlukan autentikasi
-router.use(verifyToken);  // Memastikan setiap route memerlukan autentikasi
+router.use(verifyToken);
 
 // Route untuk mengambil data profil pengguna
 router.get('/profile', userController.getProfile);

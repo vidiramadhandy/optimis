@@ -1,3 +1,4 @@
+// backend/src/app.js
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -6,11 +7,14 @@ const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 
-// Middleware
+// Perbaikan konfigurasi CORS
 app.use(cors({
   origin: 'http://localhost:3000',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token']
 }));
+
 app.use(express.json());
 app.use(cookieParser());
 
@@ -18,13 +22,12 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
-// Default route for root path
+// Default route
 app.get('/', (req, res) => {
-  res.send('OptiPredict API is running...');
+  res.send('Welcome to the OptiPredict API');
 });
 
-
-// Basic error handler
+// Error handler
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send('Terjadi kesalahan!');

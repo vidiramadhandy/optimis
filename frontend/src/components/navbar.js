@@ -1,6 +1,6 @@
 'use client';
 
-import { useAuth } from '@/lib/AuthContext'; // Mengambil login dan logout dari context
+import { useAuth } from '@/lib/AuthContext'; // Pastikan path impor benar
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -61,11 +61,11 @@ const Navbar = () => {
         ) : user ? (
           <>
             <Link href="/profile">
-              <span className="text-white">{user.name}</span> {/* Menampilkan nama pengguna */}
+              <span className="text-white hover:bg-gray-600 transition-all ease-in-out duration-300">Welcome, {user.name}</span> {/* Menampilkan nama pengguna */}
             </Link>
           </>
         ) : (
-          <span className="text-white">Belum login</span>
+          <span className="text-white">Belum login</span> 
         )}
       </div>
 
