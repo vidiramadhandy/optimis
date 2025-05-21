@@ -4,9 +4,10 @@ import { AuthProvider } from '../lib/AuthContext'; // Impor AuthProvider
 export default function Layout({ children }) {
   return (
     <html lang="en">
-      <head />
       <body>
-        <AuthProvider>{children}</AuthProvider> {/* Membungkus aplikasi dengan AuthProvider */}
+        <AuthProvider>
+          <main>{children}</main>
+        </AuthProvider>
       </body>
     </html>
   );
