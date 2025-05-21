@@ -1,25 +1,28 @@
+// backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
-const config = require('../config');  // Pastikan jwtSecret konsisten dengan yang ada di config
+const config = require('../config');
 
-// Middleware untuk memverifikasi token
 function verifyToken(req, res, next) {
-  const token = req.cookies.token || req.headers['x-access-token'];  // Token bisa ada di cookie atau header
-
+  // Cek token dari berbagai sumber
+  const authHeader = req.headers['authorization'];
+  const token = authHeader ? authHeader.split(' ')[1] : 
+                req.cookies.token || 
+                req.headers['x-access-token'];
+  
   if (!token) {
-    return res.status(403).json({ message: 'Token diperlukan untuk autentikasi' });  // Token tidak ada
+    return res.status(403).json({ message: 'Token diperlukan untuk autentikasi' });
   }
-
+  
   try {
-    // Verifikasi token menggunakan JWT Secret yang sama
-    const decoded = jwt.verify(token, config.jwtSecret);  // Pastikan jwtSecret konsisten
-    req.userId = decoded.id;  // Menyimpan userId yang didekodekan ke dalam request untuk digunakan di controller
-    next();  // Melanjutkan ke route berikutnya (controller)
+    const decoded = jwt.verify(token, config.jwtSecret);
+    req.userId = decoded.id;
+    next();
   } catch (error) {
-    console.error('Token tidak valid:', error);
-    return res.status(401).json({ message: 'Token tidak valid' });  // Token tidak valid
+    console.error('Token verification error:', error);
+    return res.status(401).json({ message: 'Token tidak valid atau kedaluwarsa' });
   }
 }
 
 module.exports = {
-  verifyToken,
+  verifyToken
 };

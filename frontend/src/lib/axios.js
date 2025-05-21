@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-// Pastikan axios selalu mengirimkan cookies di setiap permintaan
-axios.defaults.withCredentials = true;  // Mengatur agar cookies selalu dikirim
-
-// Atur URL dasar axios
-axios.defaults.baseURL = 'http://localhost:5000';  // Sesuaikan dengan URL backend Anda
+// Mengonfigurasi axios dengan URL dasar dan kredensial untuk cookie
+axios.defaults.baseURL = 'http://localhost:5000';  // Ganti dengan URL backend Anda
+axios.defaults.withCredentials = true;  // Untuk mengirimkan cookies bersama permintaan
 
 export default axios;

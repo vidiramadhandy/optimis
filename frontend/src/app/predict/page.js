@@ -6,7 +6,7 @@ import Navbar from '../../components/navbar';
 import AltPage from './altpage'; // Mengimpor komponen AltPage
 
 const Predict = () => {
-  const [inputs, setInputs] = useState(Array(30).fill('0')); // Set nilai default '0' untuk P1-P30
+  const [inputs, setInputs] = useState(Array(30).fill(''));
   const [snr, setSnr] = useState('');
   const [isAltPageVisible, setIsAltPageVisible] = useState(false); // State untuk kontrol tampilan
   const router = useRouter();
@@ -58,16 +58,7 @@ const Predict = () => {
       </div>
 
       <div className="absolute inset-0 w-full mt-56 animated-background bg-gradient-to-tl from-gray-800 via-neutral-800 to-indigo-800 z-0"></div>
-      {/* Hyperlink untuk memilih antara input manual atau upload CSV */}
-      <div className="text-center my-4 relative z-20">
-        <a
-          href="#"
-          onClick={toggleAltPage}
-          className="text-white hover:text-blue-500 transition-all duration-500 ease-in-out font-semibold text-xl"
-        >
-          {isAltPageVisible ? 'Use Manual Input' : 'Or Upload CSV'}
-        </a>
-      </div>
+
       {/* Kondisi untuk menampilkan input manual atau AltPage */}
       {isAltPageVisible ? (
         <AltPage /> // Komponen untuk upload CSV
@@ -91,9 +82,7 @@ const Predict = () => {
                     required
                     min="1"
                     max="10"
-                    placeholder="0" // Placeholder untuk angka 0
-                    className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out 
-                    ${inputs[i] === '0' ? 'text-gray-500' : 'text-black'}`} // Mengubah warna teks jika input masih 0
+                    className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                   />
                 </div>
               ))}
@@ -111,9 +100,7 @@ const Predict = () => {
                   required
                   min="0"
                   max="30"
-                  placeholder="0"
-                  className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out
-                  ${snr === '0' ? 'text-gray-500' : 'text-black'}`}
+                  className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
                 />
               </div>
             </div>
@@ -130,6 +117,17 @@ const Predict = () => {
           </form>
         </div>
       )}
+
+      {/* Hyperlink untuk memilih antara input manual atau upload CSV */}
+      <div className="text-center my-4 relative z-20">
+        <a
+          href="#"
+          onClick={toggleAltPage}
+          className="text-blue-500 hover:text-blue-700 transition-all duration-500 ease-in-out font-semibold text-xl"
+        >
+          {isAltPageVisible ? 'Use Manual Input' : 'Or Upload CSV'}
+        </a>
+      </div>
     </div>
   );
 };
