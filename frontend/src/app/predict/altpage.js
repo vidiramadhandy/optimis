@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/lib/AuthContext';
 import ExcelJS from 'exceljs'; // Import exceljs
 import Navbar from '../../components/navbar';
 
