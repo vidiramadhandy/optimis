@@ -2,14 +2,15 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/AuthContext';
 import Navbar from '../../components/navbar';
 import AltPage from './altpage'; // Mengimpor komponen AltPage
 
 const Predict = () => {
-  const [inputs, setInputs] = useState(Array(30).fill(''));
+  const [inputs, setInputs] = useState(Array(30).fill('0')); // Set nilai default '0' untuk P1-P30
   const [snr, setSnr] = useState('');
   const [isAltPageVisible, setIsAltPageVisible] = useState(false); // State untuk kontrol tampilan
+  const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false); // State untuk menampilkan modal konfirmasi
+  const [isDataConfirmed, setIsDataConfirmed] = useState(false); // State untuk mengonfirmasi data
   const router = useRouter();
 
   const handleInputChange = (index, value) => {
@@ -22,14 +23,25 @@ const Predict = () => {
     e.preventDefault();
 
     // Validasi jika ada input kosong
-    if (inputs.some(input => input === '') || inputs.some(input => input < 1 || input > 10) || snr === '' || snr < 0 || snr > 30
-  ) {
+    if (inputs.some(input => input === '') || inputs.some(input => input < 0 || input > 10) || snr === '' || snr < 0 || snr > 30) {
       alert("Silakan lengkapi semua input.");
       return;
     }
 
-    console.log(inputs, snr); // Cetak seluruh input di konsol
+    // Tampilkan modal konfirmasi
+    setIsConfirmModalVisible(true);
+  };
+
+  const handleConfirm = () => {
+    // Jika data sudah dikonfirmasi, arahkan ke halaman hasil
+    setIsDataConfirmed(true);
+    setIsConfirmModalVisible(false);
     router.push('/results');
+  };
+
+  const handleCancel = () => {
+    // Jika dibatalkan, tutup modal konfirmasi
+    setIsConfirmModalVisible(false);
   };
 
   const toggleAltPage = () => {
@@ -59,6 +71,17 @@ const Predict = () => {
       </div>
 
       <div className="absolute inset-0 w-full mt-56 animated-background bg-gradient-to-tl from-gray-800 via-neutral-800 to-indigo-800 z-0"></div>
+      
+      {/* Hyperlink untuk memilih antara input manual atau upload CSV */}
+      <div className="text-center my-4 relative z-20">
+        <a
+          href="#"
+          onClick={toggleAltPage}
+          className="text-white hover:text-blue-500 transition-all duration-500 ease-in-out font-semibold text-xl"
+        >
+          {isAltPageVisible ? 'Use Manual Input' : 'Or Upload CSV'}
+        </a>
+      </div>
 
       {/* Kondisi untuk menampilkan input manual atau AltPage */}
       {isAltPageVisible ? (
@@ -66,6 +89,10 @@ const Predict = () => {
       ) : (
         <div className="text-black relative z-20 w-full lg:w-2/3 bg-white py-4 px-8 rounded-lg shadow-lg mx-auto my-8">
           <h2 className="text-3xl font-bold mb-2 text-left">Input</h2>
+          <p className="text-gray-500 text-sm mt-2">
+            Please enter values for P1 to P30. These values should be between 0 and 10, and SNR should be between 0 and 30.
+          </p>
+
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-3 gap-6">
               {/* Input P1-P30 */}
@@ -81,9 +108,11 @@ const Predict = () => {
                     value={inputs[i]}
                     onChange={(e) => handleInputChange(i, e.target.value)}
                     required
-                    min="1"
+                    min="0"
                     max="10"
-                    className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
+                    placeholder="0-10" // Placeholder untuk angka 0
+                    className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out 
+                    ${inputs[i] === '0' ? 'text-gray-400' : 'text-black'}`} // Mengubah warna teks jika input masih 0
                   />
                 </div>
               ))}
@@ -101,7 +130,9 @@ const Predict = () => {
                   required
                   min="0"
                   max="30"
-                  className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
+                  placeholder="0-30"
+                  className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out
+                  ${snr === '0' ? 'text-gray-500' : 'text-black'}`}
                 />
               </div>
             </div>
@@ -119,16 +150,41 @@ const Predict = () => {
         </div>
       )}
 
-      {/* Hyperlink untuk memilih antara input manual atau upload CSV */}
-      <div className="text-center my-4 relative z-20">
-        <a
-          href="#"
-          onClick={toggleAltPage}
-          className="text-blue-500 hover:text-blue-700 transition-all duration-500 ease-in-out font-semibold text-xl"
-        >
-          {isAltPageVisible ? 'Use Manual Input' : 'Or Upload CSV'}
-        </a>
-      </div>
+      {/* Modal Konfirmasi */}
+      {isConfirmModalVisible && (
+        <div className="fixed inset-0 bg-gray-700 bg-opacity-50 flex justify-center items-center z-50">
+          <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+            <h2 className="text-2xl font-bold mb-4 text-black">Confirm Your Data</h2>
+            <div className="mb-4">
+              <h3 className="text-lg text-black">P1 to P30 Values:</h3>
+              <div className="grid grid-cols-3 gap-4 mb-8">
+                {/* Menampilkan nilai P1 sampai P30 dalam grid */}
+                {inputs.map((input, index) => (
+                  <div key={index} className="text-center text-black">
+                    <span>{input}</span>
+                  </div>
+                ))}
+              </div>
+              <h3 className="text-lg mt-4 text-black">SNR:</h3>
+              <pre className="text-black">{snr}</pre>
+            </div>
+            <div className="flex justify-between">
+              <button
+                onClick={handleCancel}
+                className="px-6 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-700"
+              >
+                Edit Data
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="px-6 py-2 bg-green-500 text-white rounded-md hover:bg-emerald-600"
+              >
+                Predict
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
