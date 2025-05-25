@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/lib/AuthContext';
 import ExcelJS from 'exceljs'; // Import exceljs
 import Navbar from '../../components/navbar';
 
@@ -74,7 +73,7 @@ const AltPage = () => {
         bottom: 0
       }}></div>
 
-      <div className="absolute inset-0 w-full mt-30 animated-background bg-gradient-to-bl from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
+      <div className="absolute inset-0 w-full -mt-41 animated-background bg-gradient-to-bl from-gray-800 via-zinc-800 to-violet-950 z-0"></div>
 
       <div className="text-black relative z-20 w-full lg:w-2/3 bg-white p-4 rounded-lg shadow-lg mx-auto my-8">
         <h2 className="text-3xl font-bold mb-2 text-left">Upload Excel File</h2>
