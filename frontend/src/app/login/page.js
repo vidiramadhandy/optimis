@@ -1,20 +1,39 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import InputError from '@/components/InputError';
 import AuthSessionStatus from '../AuthSessionStatus';
-import { useAuth } from '@/lib/AuthContext'; // Tambahkan impor ini
+import { useAuth } from '@/lib/AuthContext';
 
 const Login = () => {
   const router = useRouter();
-  const { login } = useAuth(); // Gunakan hook useAuth
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [shouldRemember, setShouldRemember] = useState(false);
   const [errors, setErrors] = useState({});
   const [status, setStatus] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Load remembered email saat component mount
+  useEffect(() => {
+    // Pastikan kode hanya berjalan di client side
+    if (typeof window !== 'undefined') {
+      const rememberedEmail = localStorage.getItem('remembered_email');
+      const isRemembered = localStorage.getItem('should_remember') === 'true';
+      
+      console.log('Loading remember me data:');
+      console.log('Remembered email:', rememberedEmail);
+      console.log('Is remembered:', isRemembered);
+      
+      if (rememberedEmail && isRemembered) {
+        setEmail(rememberedEmail);
+        setShouldRemember(true);
+        console.log('Remember me data loaded successfully');
+      }
+    }
+  }, []);
 
   const submitForm = async (event) => {
     event.preventDefault();
@@ -30,9 +49,26 @@ const Login = () => {
     }
 
     try {
+      console.log('Attempting login with remember:', shouldRemember);
+      
+      // Handle remember me logic SEBELUM login
+      if (shouldRemember) {
+        localStorage.setItem('remembered_email', email);
+        localStorage.setItem('should_remember', 'true');
+        console.log('Remember me data saved before login');
+      } else {
+        localStorage.removeItem('remembered_email');
+        localStorage.removeItem('should_remember');
+        console.log('Remember me data cleared before login');
+      }
+
       // Gunakan fungsi login dari AuthContext
-      await login(email, password, shouldRemember);
-      router.push('/home');
+      const success = await login(email, password, shouldRemember);
+      
+      if (success) {
+        console.log('Login successful');
+        router.push('/home');
+      }
     } catch (error) {
       console.error("Login error:", error);
       setErrors({ general: error.message || 'Terjadi kesalahan saat login. Silakan coba lagi.' });
@@ -41,7 +77,38 @@ const Login = () => {
     }
   };
 
-  // Desain tetap sama seperti sebelumnya
+  // Handle perubahan checkbox remember me
+  const handleRememberChange = (e) => {
+    const isChecked = e.target.checked;
+    setShouldRemember(isChecked);
+    
+    console.log('Remember checkbox changed:', isChecked);
+    
+    if (isChecked && email) {
+      // Simpan email jika checkbox dicentang dan email sudah ada
+      localStorage.setItem('remembered_email', email);
+      localStorage.setItem('should_remember', 'true');
+      console.log('Remember me enabled and email saved');
+    } else if (!isChecked) {
+      // Hapus data jika checkbox tidak dicentang
+      localStorage.removeItem('remembered_email');
+      localStorage.removeItem('should_remember');
+      console.log('Remember me disabled and data cleared');
+    }
+  };
+
+  // Handle perubahan email
+  const handleEmailChange = (e) => {
+    const newEmail = e.target.value;
+    setEmail(newEmail);
+    
+    // Update localStorage jika remember me aktif
+    if (shouldRemember) {
+      localStorage.setItem('remembered_email', newEmail);
+      console.log('Email updated in localStorage:', newEmail);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-start bg-gray-100 relative">
       <video
@@ -55,7 +122,7 @@ const Login = () => {
         Your browser does not support the video tag.
       </video>
 
-      <div className="absolute inset-0 w-full lg:w-4/10 md:w-2/3 right-0 ml-auto animated-background bg-linear-to-tl from-pink-800 via-violet-800 to-gray-800 z-10"></div>
+      <div className="absolute inset-0 w-full lg:w-4/10 md:w-2/3 right-0 ml-auto animated-background bg-linear-to-tl from-emerald-800 via-violet-800 to-gray-800 z-10"></div>
 
       <div className="text-gray-800 relative z-20 w-full justify-end lg:w-1/3 sm:w-1/2 bg-white p-8 rounded-lg shadow-lg ml-auto mr-10">
         <h2 className="text-3xl font-bold mb-6 text-center">Login to OptiPredict</h2>
@@ -78,7 +145,7 @@ const Login = () => {
               id="email"
               placeholder="email"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={handleEmailChange}
               required
               className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300"
             />
@@ -106,7 +173,7 @@ const Login = () => {
               type="checkbox"
               id="remember"
               checked={shouldRemember}
-              onChange={(e) => setShouldRemember(e.target.checked)}
+              onChange={handleRememberChange}
               className="mr-2"
             />
             <label htmlFor="remember" className="text-sm text-gray-700">Remember me</label>
@@ -115,7 +182,7 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 mt-4 bg-emerald-500 text-white text-lg rounded-md hover:bg-emerald-600 hover:cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 ease-in-out"
+            className="w-full py-3 mt-4 text-white text-lg rounded-md btn-gradient"
           >
             {loading ? 'Logging In...' : 'Login'}
           </button>
@@ -123,7 +190,7 @@ const Login = () => {
 
         <p className="mt-4 text-center text-sm text-gray-500">
           Don't have an account?{' '}
-          <a href="/register" className="text-gray-600 hover:underline hover:text-gray-900">
+          <a href="/register" className="text-gray-500 hover:underline hover:text-gray-900 transition-colors">
             Sign up here
           </a>
         </p>

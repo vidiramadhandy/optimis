@@ -1,15 +1,84 @@
 'use client';
 
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 
-// Buat context untuk autentikasi
 const AuthContext = createContext();
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
   const router = useRouter();
+  
+  // Refs untuk auto logout
+  const timeoutRef = useRef(null);
+  const lastActivityRef = useRef(Date.now());
+  
+  // Konstanta untuk timeout (1 jam = 3600000 ms)
+  const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 jam
+  const WARNING_TIME = 5 * 60 * 1000; // 5 menit sebelum logout
+
+  // Fungsi untuk reset timer inactivity
+  const resetInactivityTimer = () => {
+    lastActivityRef.current = Date.now();
+    
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
+    
+    // Set new timeout hanya jika user sedang login
+    if (user) {
+      timeoutRef.current = setTimeout(() => {
+        handleAutoLogout();
+      }, INACTIVITY_TIMEOUT);
+    }
+  };
+
+  // Fungsi untuk handle auto logout
+  const handleAutoLogout = () => {
+    console.log('Auto logout due to inactivity');
+    logout(true); // Parameter true untuk menandakan auto logout
+  };
+
+  // Fungsi untuk track user activity
+  const trackUserActivity = () => {
+    resetInactivityTimer();
+  };
+
+  // Setup event listeners untuk track activity
+  useEffect(() => {
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    // Add event listeners
+    events.forEach(event => {
+      document.addEventListener(event, trackUserActivity, true);
+    });
+
+    // Cleanup event listeners
+    return () => {
+      events.forEach(event => {
+        document.removeEventListener(event, trackUserActivity, true);
+      });
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, [user]);
+
+  // Start inactivity timer saat user login
+  useEffect(() => {
+    if (user) {
+      resetInactivityTimer();
+    } else {
+      // Clear timer saat user logout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    }
+  }, [user]);
 
   // Fungsi untuk mengambil data user berdasarkan token
   const fetchUserData = async () => {
@@ -53,9 +122,12 @@ export function AuthProvider({ children }) {
     fetchUserData();
   }, []);
 
-  // Fungsi login
-  const login = async (email, password, remember) => {
+  // Fungsi login dengan remember me support
+  const login = async (email, password, remember = false) => {
     try {
+      setIsLoading(true);
+      setError(null);
+
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -66,32 +138,88 @@ export function AuthProvider({ children }) {
       const data = await response.json();
       
       if (!response.ok) {
+        setError(data.message || 'Login gagal');
         throw new Error(data.message || 'Login gagal');
       }
       
       if (data.token) {
         localStorage.setItem('auth_token', data.token);
         
-        // Jika data user sudah ada dalam respons login
+        // Handle remember me logic
+        if (remember) {
+          localStorage.setItem('remembered_email', email);
+          localStorage.setItem('should_remember', 'true');
+          
+          // Set token expiry yang lebih lama untuk remember me
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30); // 30 hari
+          localStorage.setItem('token_expiry', expiryDate.toISOString());
+        } else {
+          localStorage.removeItem('remembered_email');
+          localStorage.removeItem('should_remember');
+          
+          // Set token expiry normal (1 hari)
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 1);
+          localStorage.setItem('token_expiry', expiryDate.toISOString());
+        }
+        
+        // Set user data
         if (data.id && data.name && data.email) {
           setUser(data);
         } else {
-          // Jika tidak, ambil data user dengan token yang baru
           await fetchUserData();
         }
+        
+        // Start inactivity timer setelah login
+        resetInactivityTimer();
         
         return true;
       }
       
+      setError('Token tidak ditemukan dalam respons');
       return false;
     } catch (error) {
       console.error('Login failed:', error);
+      setError(error.message || 'Terjadi kesalahan saat login');
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Fungsi logout
-  const logout = async () => {
+  // Fungsi register
+  const register = async (userData) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const response = await fetch('http://localhost:5000/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userData),
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        setError(data.message || 'Registrasi gagal');
+        return false;
+      }
+      
+      router.push('/login');
+      return true;
+    } catch (err) {
+      console.error('Registration failed:', err);
+      setError('Terjadi kesalahan saat registrasi');
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fungsi logout yang enhanced
+  const logout = async (isAutoLogout = false) => {
     try {
       const token = localStorage.getItem('auth_token');
       if (token) {
@@ -106,18 +234,88 @@ export function AuthProvider({ children }) {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // Clear timer
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      // Hapus token dan user data
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('token_expiry');
       setUser(null);
+      
+      // Show notification jika auto logout
+      if (isAutoLogout) {
+        alert('Anda telah logout otomatis karena tidak aktif selama 1 jam');
+      }
+      
+      router.push('/login');
     }
   };
 
+  // Fungsi untuk get remaining time
+  const getRemainingTime = () => {
+    if (!user) return 0;
+    
+    const timeSinceLastActivity = Date.now() - lastActivityRef.current;
+    const remainingTime = INACTIVITY_TIMEOUT - timeSinceLastActivity;
+    
+    return Math.max(0, remainingTime);
+  };
+
+  // Fungsi untuk extend session
+  const extendSession = () => {
+    if (user) {
+      resetInactivityTimer();
+      console.log('Session extended');
+    }
+  };
+
+  // Helper functions
+  const clearRememberMe = () => {
+    localStorage.removeItem('remembered_email');
+    localStorage.removeItem('should_remember');
+  };
+
+  const getRememberedEmail = () => {
+    const isRemembered = localStorage.getItem('should_remember') === 'true';
+    const rememberedEmail = localStorage.getItem('remembered_email');
+    
+    return isRemembered ? rememberedEmail : null;
+  };
+
+  const isTokenExpired = () => {
+    const expiry = localStorage.getItem('token_expiry');
+    if (!expiry) return true;
+    
+    return new Date() > new Date(expiry);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, login, logout, isLoading, fetchUserData }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      register,
+      logout, 
+      isLoading, 
+      error,
+      fetchUserData,
+      clearRememberMe,
+      getRememberedEmail,
+      isTokenExpired,
+      getRemainingTime,
+      extendSession,
+      resetInactivityTimer
+    }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  return useContext(AuthContext);
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 }
