@@ -31,13 +31,13 @@ body {
   --foreground: #171717;
   
   /* Gradient Morph Variables */
-  --color-bg1: rgb(108, 0, 162);
-  --color-bg2: rgb(0, 17, 82);
+  --color-bg1: #0a061c;
+  --color-bg2: #000b38;
   --color1: 18, 113, 255;
   --color2: 221, 74, 255;
   --color3: 100, 220, 255;
   --color4: 200, 50, 50;
-  --color5: 180, 180, 50;
+  --color5: 51, 255, 153;
   --color-interactive: 140, 100, 255;
   --circle-size: 80%;
   --blending: hard-light;
@@ -232,7 +232,7 @@ body {
 }
 
 .btn-gradient {
-  background: linear-gradient(90deg, #10b981, #3b82f6);
+  background: linear-gradient(90deg, #10b981);
   background-size: 200% 200%;
   transition: background 0.5s ease-in-out;
   color: white;
@@ -248,8 +248,8 @@ body {
 }
 
 .btn-gradient:hover {
-  animation: circularGradientFlush 2s linear infinite;
-  background: linear-gradient(270deg, #10b981, #3b82f6, #8b5cf6, #0bf584, #10b981);
+  animation: circularGradientFlush 3s linear infinite;
+  background: linear-gradient(90deg, #10b981, #0eab4ad0, #00ff62, #10b981);
   background-size: 400% 400%;
   background-position: 0% 50%;
   transition: all 0.3s ease-in-out;
