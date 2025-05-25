@@ -6,11 +6,10 @@ import Navbar from '../../components/navbar';
 import AltPage from './altpage'; // Mengimpor komponen AltPage
 
 const Predict = () => {
-  const [inputs, setInputs] = useState(Array(30).fill('0')); // Set nilai default '0' untuk P1-P30
+  const [inputs, setInputs] = useState(Array(30).fill('')); // Ubah dari fill('0') ke fill('')
   const [snr, setSnr] = useState('');
   const [isAltPageVisible, setIsAltPageVisible] = useState(false); // State untuk kontrol tampilan
   const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false); // State untuk menampilkan modal konfirmasi
-  const [isDataConfirmed, setIsDataConfirmed] = useState(false); // State untuk mengonfirmasi data
   const router = useRouter();
 
   const handleInputChange = (index, value) => {
@@ -22,9 +21,13 @@ const Predict = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Validasi jika ada input kosong
-    if (inputs.some(input => input === '') || inputs.some(input => input < 0 || input > 10) || snr === '' || snr < 0 || snr > 30) {
-      alert("Silakan lengkapi semua input.");
+    // Validasi yang diperbaiki
+    const hasEmptyInputs = inputs.some(input => input === '');
+    const hasInvalidInputs = inputs.some(input => input !== '' && (parseFloat(input) < 0 || parseFloat(input) > 10));
+    const hasInvalidSnr = snr === '' || parseFloat(snr) < 0 || parseFloat(snr) > 30;
+
+    if (hasEmptyInputs || hasInvalidInputs || hasInvalidSnr) {
+      alert("Silakan lengkapi semua input dengan nilai yang valid.");
       return;
     }
 
@@ -34,7 +37,6 @@ const Predict = () => {
 
   const handleConfirm = () => {
     // Jika data sudah dikonfirmasi, arahkan ke halaman hasil
-    setIsDataConfirmed(true);
     setIsConfirmModalVisible(false);
     router.push('/results');
   };
@@ -110,9 +112,9 @@ const Predict = () => {
                     required
                     min="0"
                     max="10"
-                    placeholder="0-10" // Placeholder untuk angka 0
-                    className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out 
-                    ${inputs[i] === '0' ? 'text-gray-400' : 'text-black'}`} // Mengubah warna teks jika input masih 0
+                    step="0.1"
+                    placeholder="0-10"
+                    className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out text-black"
                   />
                 </div>
               ))}
@@ -130,9 +132,9 @@ const Predict = () => {
                   required
                   min="0"
                   max="30"
+                  step="0.1"
                   placeholder="0-30"
-                  className={`w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out
-                  ${snr === '0' ? 'text-gray-500' : 'text-black'}`}
+                  className="w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out text-black"
                 />
               </div>
             </div>
@@ -161,12 +163,12 @@ const Predict = () => {
                 {/* Menampilkan nilai P1 sampai P30 dalam grid */}
                 {inputs.map((input, index) => (
                   <div key={index} className="text-center text-black">
-                    <span>{input}</span>
+                    <span>P{index + 1}: {input || 'Empty'}</span>
                   </div>
                 ))}
               </div>
               <h3 className="text-lg mt-4 text-black">SNR:</h3>
-              <pre className="text-black">{snr}</pre>
+              <pre className="text-black">{snr || 'Empty'}</pre>
             </div>
             <div className="flex justify-between">
               <button
