@@ -115,7 +115,7 @@ const Login = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 mt-4 bg-green-500 text-white text-lg rounded-md hover:bg-emerald-600 hover:cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 ease-in-out"
+            className="w-full py-3 mt-4 bg-emerald-500 text-white text-lg rounded-md hover:bg-emerald-600 hover:cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300 ease-in-out"
           >
             {loading ? 'Logging In...' : 'Login'}
           </button>
@@ -123,7 +123,7 @@ const Login = () => {
 
         <p className="mt-4 text-center text-sm text-gray-500">
           Don't have an account?{' '}
-          <a href="/register" className="text-blue-400 hover:underline hover:text-blue-800">
+          <a href="/register" className="text-gray-600 hover:underline hover:text-gray-900">
             Sign up here
           </a>
         </p>

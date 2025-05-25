@@ -13,7 +13,7 @@ const Register = () => {
     const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
     const [successMessage, setSuccessMessage] = useState('');
-    const router = useRouter();  // Inisialisasi useRouter untuk navigasi
+    const router = useRouter();
 
     const submitForm = async (event) => {
         event.preventDefault();
@@ -25,11 +25,11 @@ const Register = () => {
         }
 
         setLoading(true);
-        setErrors({});  // Clear previous errors
-        setSuccessMessage('');  // Clear previous success message
+        setErrors({});
+        setSuccessMessage('');
 
         try {
-            const response = await fetch('http://localhost:8000/api/users', {
+            const response = await fetch('http://localhost:8000/api/auth', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -41,7 +41,7 @@ const Register = () => {
 
             if (response.ok) {
                 setSuccessMessage('User successfully registered!');
-                router.push('/login'); // Redirect to login page after registration
+                router.push('/login');
             } else {
                 setErrors(data.error ? { general: data.error } : { general: 'Something went wrong. Please try again.' });
             }
@@ -54,95 +54,121 @@ const Register = () => {
     };
 
     return (
-        <div className="absolute inset-0 w-full animated-background bg-linear-to-tl from-gray-800 via-neutral-800 to-indigo-800 flex items-center justify-center">
-            <div className="text-gray-800 relative z-20 w-full max-w-md bg-white p-8 rounded-lg shadow-lg mx-4">
-                <div className="text-3xl font-bold mb-2 text-center">
-                    <h1>Sign Up for OptiPredict</h1>
+        <div className="min-h-screen relative">
+            {/* Advanced Gradient Morph Background */}
+            <div className="gradient-bg">
+                <div className="gradients-container">
+                    <div className="g1"></div>
+                    <div className="g2"></div>
+                    <div className="g3"></div>
+                    <div className="g4"></div>
+                    <div className="g5"></div>
                 </div>
+            </div>
 
-                <form onSubmit={submitForm}>
-                    <div className="mt-2">
-                        <label htmlFor="name" className="block text-lg font-medium text-gray-700">
-                            Name
-                        </label>
-                        <input 
-                            type="text" 
-                            id="name"
-                            value={name}
-                            onChange={(e) => setName(e.target.value)}
-                            required
-                            className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
-                        />
-                        <InputError messages={errors.name} className="mt-2" />
+            {/* Content Layer */}
+            <div className="relative z-10 flex items-center justify-center min-h-screen">
+                <div className="text-gray-800 w-full max-w-md bg-white/95 backdrop-blur-sm p-8 rounded-lg shadow-xl mx-4">
+                    <div className="text-3xl font-bold mb-6 text-center">
+                        <h1>Sign Up for OptiPredict</h1>
                     </div>
 
-                    <div className="mt-2">
-                        <label htmlFor="email" className="block text-lg font-medium text-gray-700">
-                            Email
-                        </label>
-                        <input 
-                            type="email" 
-                            id="email"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            required
-                            className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
-                        />
-                        <InputError messages={errors.email} className="mt-2" />
-                    </div>
+                    <form onSubmit={submitForm}>
+                        <div className="mb-4">
+                            <label htmlFor="name" className="block text-lg font-medium text-gray-700 mb-2">
+                                Name
+                            </label>
+                            <input 
+                                type="text" 
+                                id="name"
+                                value={name}
+                                placeholder="Name"
+                                onChange={(e) => setName(e.target.value)}
+                                required
+                                className="text-black w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all duration-300 ease-in-out"
+                            />
+                            <InputError messages={errors.name} className="mt-2" />
+                        </div>
 
-                    <div className="mt-2">
-                        <label htmlFor="password" className="block text-lg font-medium text-gray-700">
-                            Password
-                        </label>
-                        <input 
-                            type="password" 
-                            id="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            required
-                            className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
-                        />
-                        <InputError messages={errors.password} className="mt-2" />
-                    </div>
+                        <div className="mb-4">
+                            <label htmlFor="email" className="block text-lg font-medium text-gray-700 mb-2">
+                                Email
+                            </label>
+                            <input 
+                                type="email" 
+                                id="email"
+                                value={email}
+                                placeholder="Email"
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                className="text-black w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all duration-300 ease-in-out"
+                            />
+                            <InputError messages={errors.email} className="mt-2" />
+                        </div>
 
-                    <div className="mt-2">
-                        <label htmlFor="passwordConfirmation" className="block text-lg font-medium text-gray-700">
-                            Confirm Password
-                        </label>
-                        <input 
-                            type="password" 
-                            id="passwordConfirmation"
-                            value={passwordConfirmation}
-                            onChange={(e) => setPasswordConfirmation(e.target.value)}
-                            required
-                            className="text-black w-full p-3 mt-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-gray-300 transition-all duration-300 ease-in-out"
-                        />
-                        <InputError messages={errors.password_confirmation} className="mt-2" />
-                    </div>
+                        <div className="mb-4">
+                            <label htmlFor="password" className="block text-lg font-medium text-gray-700 mb-2">
+                                Password
+                            </label>
+                            <input 
+                                type="password" 
+                                id="password"
+                                value={password}
+                                placeholder="Password"
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                className="text-black w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all duration-300 ease-in-out"
+                            />
+                            <InputError messages={errors.password} className="mt-2" />
+                        </div>
 
-                    {errors.general && (
-                        <div className="text-red-500 text-sm mt-4">{errors.general}</div>
-                    )}
+                        <div className="mb-6">
+                            <label htmlFor="passwordConfirmation" className="block text-lg font-medium text-gray-700 mb-2">
+                                Confirm Password
+                            </label>
+                            <input 
+                                type="password" 
+                                id="passwordConfirmation"
+                                placeholder="Confirm your Password"
+                                value={passwordConfirmation}
+                                onChange={(e) => setPasswordConfirmation(e.target.value)}
+                                required
+                                className="text-black w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all duration-300 ease-in-out"
+                            />
+                            <InputError messages={errors.password_confirmation} className="mt-2" />
+                        </div>
 
-                    <button
-                        type="submit"
-                        className={`w-full py-3 mt-4 ${loading ? 'bg-gray-400' : 'bg-green-500'} text-white text-lg font-bold rounded-md hover:bg-emerald-600 focus:outline-none focus:ring-2 transition-all duration-300 ease-in-out cursor-pointer`}
-                        disabled={loading}
-                    >
-                        {loading ? 'Signing Up...' : 'Sign Up!'}
-                    </button>
+                        {errors.general && (
+                            <div className="text-red-500 text-sm mb-4 p-3 bg-red-50 rounded-md">
+                                {errors.general}
+                            </div>
+                        )}
 
-                    {successMessage && <div className="text-green-500 text-sm mt-4">{successMessage}</div>}
+                        <button
+                            type="submit"
+                            className={`btn-gradient w-full py-3 text-lg font-bold rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer ${
+                                loading ? 'opacity-50' : ''
+                            }`}
+                            disabled={loading}
+                        >
+                            {loading ? 'Signing Up...' : 'Sign Up!'}
+                        </button>
 
-                    <div className="flex items-center justify-start mt-4">
-                        <Link
-                            href="/login"
-                            className="underline text-sm text-gray-600 hover:text-gray-900">
-                             Already registered?
-                        </Link>
-                    </div>
-                </form>
+                        {successMessage && (
+                            <div className="text-green-500 text-sm mt-4 p-3 bg-green-50 rounded-md">
+                                {successMessage}
+                            </div>
+                        )}
+
+                        <div className="flex items-center justify-center mt-6">
+                            <Link
+                                href="/login"
+                                className="underline text-sm text-gray-600 hover:text-gray-900 transition-colors">
+                                Already registered? Sign in here
+                            </Link>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     );
