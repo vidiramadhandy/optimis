@@ -1,41 +1,99 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Navbar from '@/components/navbar';
 
 const Results = () => {
   const [inputs, setInputs] = useState(Array(30).fill(''));
   const [snr, setSnr] = useState('');
   const [predictionResult, setPredictionResult] = useState('');
+  const [confidence, setConfidence] = useState('');
+  const [inputType, setInputType] = useState('');
+  const [analysisTime, setAnalysisTime] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
-    // Simulasi pengambilan data dari localStorage atau props
-    // Dalam implementasi nyata, data ini bisa didapat dari API atau state management
-    const mockInputs = Array.from({length: 30}, (_, i) => (Math.random() * 10).toFixed(1));
-    const mockSnr = (Math.random() * 30).toFixed(1);
+    // Ambil data dari localStorage yang disimpan dari halaman predict
+    const currentPrediction = localStorage.getItem('currentPrediction');
     
-    setInputs(mockInputs);
-    setSnr(mockSnr);
-    
-    // Simulasi prediksi - ganti dengan API call yang sebenarnya
-    setTimeout(() => {
-      const predictions = ['Fiber Cut', 'Normal Operation', 'Signal Degradation', 'Power Loss', 'Connector Issue'];
-      const randomPrediction = predictions[Math.floor(Math.random() * predictions.length)];
-      setPredictionResult(randomPrediction);
-      setIsLoading(false);
-    }, 2000);
-  }, []);
+    if (currentPrediction) {
+      const predictionData = JSON.parse(currentPrediction);
+      
+      // Set data input dari predict
+      setInputs(predictionData.inputs);
+      setSnr(predictionData.snr);
+      setInputType(predictionData.inputType);
+      setAnalysisTime(predictionData.analysisTime);
+      
+      // Simulasi prediksi berdasarkan data input
+      setTimeout(() => {
+        // Simulasi algoritma prediksi berdasarkan nilai input
+        const predictions = ['Fiber Cut', 'Normal Operation', 'Signal Degradation', 'Power Loss', 'Connector Issue'];
+        
+        // Simulasi logika prediksi berdasarkan nilai SNR dan parameter
+        let prediction;
+        const snrValue = parseFloat(predictionData.snr);
+        const avgParams = predictionData.inputs.reduce((sum, val) => sum + parseFloat(val), 0) / 30;
+        
+        if (snrValue < 10 || avgParams < 3) {
+          prediction = 'Fiber Cut';
+        } else if (snrValue > 25 && avgParams > 7) {
+          prediction = 'Normal Operation';
+        } else if (snrValue < 15) {
+          prediction = 'Signal Degradation';
+        } else if (avgParams < 4) {
+          prediction = 'Power Loss';
+        } else {
+          prediction = 'Connector Issue';
+        }
+        
+        setPredictionResult(prediction);
+        
+        // Generate confidence level berdasarkan konsistensi data
+        const confidenceLevel = Math.min(95, Math.max(75, 85 + (snrValue / 30) * 10));
+        setConfidence(confidenceLevel.toFixed(1));
+        
+        // Update history dengan hasil prediksi
+        const existingHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
+        if (existingHistory.length > 0) {
+          existingHistory[0].result = prediction;
+          existingHistory[0].confidence = confidenceLevel.toFixed(1);
+          localStorage.setItem('predictionHistory', JSON.stringify(existingHistory));
+        }
+        
+        setIsLoading(false);
+      }, 2000);
+    } else {
+      // Jika tidak ada data, redirect ke predict
+      router.push('/predict');
+    }
+  }, [router]);
 
   const handleBackToPredict = () => {
     router.push('/predict');
   };
 
-  const handleHome = () => {
-    router.push('/');
+  const handleHistory = () => {
+    router.push('/history');
+  };
+
+  const getRecommendation = (result) => {
+    switch (result) {
+      case 'Fiber Cut':
+        return 'Immediate maintenance required. Check physical cable connections.';
+      case 'Normal Operation':
+        return 'Network is operating within normal parameters.';
+      case 'Signal Degradation':
+        return 'Monitor signal quality and consider preventive maintenance.';
+      case 'Power Loss':
+        return 'Check power supply and backup systems.';
+      case 'Connector Issue':
+        return 'Inspect and clean fiber optic connectors.';
+      default:
+        return 'Please consult with technical team for further analysis.';
+    }
   };
 
   return (
@@ -69,6 +127,26 @@ const Results = () => {
       {/* Main Content */}
       <div className="text-black relative z-20 w-full lg:w-4/5 bg-white py-6 px-8 rounded-lg shadow-lg mx-auto my-8">
         
+        {/* Prediction Info */}
+        <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <h2 className="text-xl font-bold mb-3">Prediction Information</h2>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <span className="font-semibold">Input Type:</span> 
+              <span className={`ml-2 px-2 py-1 rounded text-xs ${
+                inputType === 'Manual' 
+                  ? 'bg-blue-100 text-blue-800' 
+                  : 'bg-purple-100 text-purple-800'
+              }`}>
+                {inputType}
+              </span>
+            </div>
+            <div>
+              <span className="font-semibold">Analysis Time:</span> {analysisTime}
+            </div>
+          </div>
+        </div>
+
         {/* Input Values Display */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-4 text-left">Input Values</h2>
@@ -122,18 +200,13 @@ const Results = () => {
                   {/* Additional Information */}
                   <div className="text-sm text-gray-600 mt-4 p-4 bg-white rounded border">
                     <p className="mb-2">
-                      <strong>Confidence Level:</strong> {(Math.random() * 20 + 80).toFixed(1)}%
+                      <strong>Confidence Level:</strong> {confidence}%
                     </p>
                     <p className="mb-2">
-                      <strong>Analysis Time:</strong> {new Date().toLocaleString()}
+                      <strong>Analysis Time:</strong> {analysisTime}
                     </p>
                     <p>
-                      <strong>Recommendation:</strong> 
-                      {predictionResult === 'Fiber Cut' && ' Immediate maintenance required. Check physical cable connections.'}
-                      {predictionResult === 'Normal Operation' && ' Network is operating within normal parameters.'}
-                      {predictionResult === 'Signal Degradation' && ' Monitor signal quality and consider preventive maintenance.'}
-                      {predictionResult === 'Power Loss' && ' Check power supply and backup systems.'}
-                      {predictionResult === 'Connector Issue' && ' Inspect and clean fiber optic connectors.'}
+                      <strong>Recommendation:</strong> {getRecommendation(predictionResult)}
                     </p>
                   </div>
                 </div>
@@ -152,10 +225,10 @@ const Results = () => {
           </button>
           
           <button
-            onClick={handleHome}
+            onClick={handleHistory}
             className="px-8 py-3 bg-gray-500 text-white text-lg rounded-md transition-all duration-400 ease-in-out hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 shadow-lg"
           >
-            Home
+            History
           </button>
         </div>
       </div>
