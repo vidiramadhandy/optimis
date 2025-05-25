@@ -56,7 +56,7 @@ const Register = () => {
     return (
         <div className="min-h-screen relative">
             {/* Advanced Gradient Morph Background */}
-            <div className="gradient-bg">
+            <div className="gradient-bg bg-gray-800">
                 <div className="gradients-container">
                     <div className="g1"></div>
                     <div className="g2"></div>
@@ -160,11 +160,12 @@ const Register = () => {
                             </div>
                         )}
 
-                        <div className="flex items-center justify-center mt-6">
+                        <div className="flex text-sm text-gray-600items-center justify-center mt-6">
+                            Already registered?
                             <Link
                                 href="/login"
                                 className="underline text-sm text-gray-600 hover:text-gray-900 transition-colors">
-                                Already registered? Sign in here
+                                Sign in here
                             </Link>
                         </div>
                     </form>
