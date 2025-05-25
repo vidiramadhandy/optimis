@@ -58,7 +58,7 @@ const Profile = () => {
               sessionStorage.removeItem('token');
               router.push('/login');
             }}
-            className="w-full py-3 bg-red-500 text-white text-lg font-bold rounded-md hover:bg-red-600 focus:outline-none focus:ring-2 transition-all duration-300 ease-in-out"
+            className="w-full py-3 bg-red-500 text-white text-lg font-bold rounded-md hover:bg-red-600 cursor-pointer focus:outline-none focus:ring-2 transition-all duration-300 ease-in-out"
           >
             Logout
           </button>
