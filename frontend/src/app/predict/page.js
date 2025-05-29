@@ -1,84 +1,316 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '../../lib/useAuth';
 import Navbar from '../../components/navbar';
-import AltPage from './altpage'; // Mengimpor komponen AltPage
+import AltPage from './altpage';
 
 const Predict = () => {
-  const [inputs, setInputs] = useState(Array(30).fill('')); // Ubah dari fill('0') ke fill('')
+  const [inputs, setInputs] = useState(Array(30).fill(''));
   const [snr, setSnr] = useState('');
-  const [isAltPageVisible, setIsAltPageVisible] = useState(false); // State untuk kontrol tampilan
-  const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false); // State untuk menampilkan modal konfirmasi
+  const [isAltPageVisible, setIsAltPageVisible] = useState(false);
+  const [isConfirmModalVisible, setIsConfirmModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [authStatus, setAuthStatus] = useState('checking');
+  const [mounted, setMounted] = useState(false);
+  const [inputErrors, setInputErrors] = useState(Array(30).fill(false)); // Track input errors
+  const [snrError, setSnrError] = useState(false);
   const router = useRouter();
 
+  // Gunakan useAuth hook
+  const { isAuthenticated, isCheckingAuth, user } = useAuth();
+
+  // Pastikan komponen sudah mounted (client-side)
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Cek autentikasi dengan lebih detail
+  useEffect(() => {
+    if (!mounted) return;
+
+    const checkDetailedAuth = async () => {
+      try {
+        console.log('🔍 Starting detailed auth check...');
+        
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const token = localStorage.getItem('auth_token');
+        console.log('Token exists in localStorage:', !!token);
+        
+        if (!token) {
+          console.log('❌ No token found, setting unauthenticated');
+          setAuthStatus('unauthenticated');
+          return;
+        }
+
+        console.log('🔍 Verifying token with backend...');
+        const response = await fetch('http://localhost:5000/api/auth/check', {
+          method: 'GET',
+          headers: {
+            'x-access-token': token,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        console.log('Auth check response status:', response.status);
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log('Auth check result:', result);
+          
+          if (result.authenticated) {
+            console.log('✅ User authenticated successfully');
+            setAuthStatus('authenticated');
+          } else {
+            console.log('❌ User not authenticated according to backend');
+            localStorage.removeItem('auth_token');
+            setAuthStatus('unauthenticated');
+          }
+        } else {
+          console.log('❌ Auth check failed with status:', response.status);
+          localStorage.removeItem('auth_token');
+          setAuthStatus('unauthenticated');
+        }
+      } catch (error) {
+        console.error('❌ Error during auth check:', error);
+        setAuthStatus('unauthenticated');
+      }
+    };
+
+    if (!isCheckingAuth && mounted) {
+      checkDetailedAuth();
+    }
+  }, [isCheckingAuth, mounted]);
+
+  // Handle redirect setelah auth status diketahui
+  useEffect(() => {
+    if (authStatus === 'unauthenticated') {
+      console.log('🔄 Redirecting to login...');
+      router.push('/login');
+    }
+  }, [authStatus, router]);
+
+  // Tampilkan loading saat mengecek autentikasi atau belum mounted
+  if (!mounted || isCheckingAuth || authStatus === 'checking') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Jika tidak terautentikasi, jangan render komponen
+  if (authStatus === 'unauthenticated') {
+    return null;
+  }
+
+  // Perbaikan: Fungsi validasi input yang lebih robust
+  const validateInput = (value, min = 0, max = 10) => {
+    if (value === '') return { isValid: true, message: '' };
+    
+    const numValue = parseFloat(value);
+    if (isNaN(numValue)) {
+      return { isValid: false, message: 'Must be a number' };
+    }
+    if (numValue < min || numValue > max) {
+      return { isValid: false, message: `Must be between ${min} and ${max}` };
+    }
+    return { isValid: true, message: '' };
+  };
+
+  // Perbaikan: Handle input change dengan validasi real-time
   const handleInputChange = (index, value) => {
     const newInputs = [...inputs];
     newInputs[index] = value;
     setInputs(newInputs);
+
+    // Validasi real-time
+    const validation = validateInput(value, 0, 10);
+    const newErrors = [...inputErrors];
+    newErrors[index] = !validation.isValid;
+    setInputErrors(newErrors);
   };
 
+  // Perbaikan: Handle SNR change dengan validasi
+  const handleSnrChange = (value) => {
+    setSnr(value);
+    
+    const validation = validateInput(value, 0, 30);
+    setSnrError(!validation.isValid);
+  };
+
+  // Perbaikan: Handle input blur untuk format nilai
+  const handleInputBlur = (index, value) => {
+    if (value !== '' && !isNaN(parseFloat(value))) {
+      const numValue = parseFloat(value);
+      if (numValue >= 0 && numValue <= 10) {
+        const newInputs = [...inputs];
+        newInputs[index] = numValue.toFixed(2);
+        setInputs(newInputs);
+      }
+    }
+  };
+
+  // Perbaikan: Handle SNR blur
+  const handleSnrBlur = (value) => {
+    if (value !== '' && !isNaN(parseFloat(value))) {
+      const numValue = parseFloat(value);
+      if (numValue >= 0 && numValue <= 30) {
+        setSnr(numValue.toFixed(2));
+      }
+    }
+  };
+
+  // Perbaikan: Validasi submit yang lebih detail
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Validasi yang diperbaiki
-    const hasEmptyInputs = inputs.some(input => input === '');
-    const hasInvalidInputs = inputs.some(input => input !== '' && (parseFloat(input) < 0 || parseFloat(input) > 10));
-    const hasInvalidSnr = snr === '' || parseFloat(snr) < 0 || parseFloat(snr) > 30;
+    // Validasi semua input
+    let hasErrors = false;
+    const newInputErrors = Array(30).fill(false);
+    
+    // Cek input P1-P30
+    for (let i = 0; i < 30; i++) {
+      if (inputs[i] === '') {
+        newInputErrors[i] = true;
+        hasErrors = true;
+      } else {
+        const validation = validateInput(inputs[i], 0, 10);
+        if (!validation.isValid) {
+          newInputErrors[i] = true;
+          hasErrors = true;
+        }
+      }
+    }
+    
+    // Cek SNR
+    let snrHasError = false;
+    if (snr === '') {
+      snrHasError = true;
+      hasErrors = true;
+    } else {
+      const validation = validateInput(snr, 0, 30);
+      if (!validation.isValid) {
+        snrHasError = true;
+        hasErrors = true;
+      }
+    }
 
-    if (hasEmptyInputs || hasInvalidInputs || hasInvalidSnr) {
-      alert("Silakan lengkapi semua input dengan nilai yang valid.");
+    setInputErrors(newInputErrors);
+    setSnrError(snrHasError);
+
+    if (hasErrors) {
+      alert("Please fill all fields with valid values:\n- P1-P30: numbers between 0 and 10\n- SNR: number between 0 and 30");
       return;
     }
 
-    // Tampilkan modal konfirmasi
     setIsConfirmModalVisible(true);
   };
 
-  const handleConfirm = () => {
-    // Simpan data prediksi ke localStorage
-    const predictionData = {
-      inputs: inputs,
-      snr: snr,
-      inputType: isAltPageVisible ? 'CSV' : 'Manual',
-      timestamp: new Date().toISOString(),
-      date: new Date().toLocaleDateString('id-ID'),
-      analysisTime: new Date().toLocaleString('id-ID')
-    };
+  const handleConfirm = async () => {
+    try {
+      setIsConfirmModalVisible(false);
+      setIsLoading(true);
+      
+      const token = localStorage.getItem('auth_token');
+      
+      console.log('🔍 Starting prediction request...');
+      console.log('Token exists for prediction:', !!token);
+      
+      if (!token) {
+        alert('Token tidak ditemukan. Silakan login terlebih dahulu.');
+        setAuthStatus('unauthenticated');
+        return;
+      }
+      
+      const predictionData = {
+        inputs: inputs.map(input => parseFloat(input)),
+        snr: parseFloat(snr),
+        inputType: isAltPageVisible ? 'CSV' : 'Manual'
+      };
 
-    // Simpan data untuk halaman result
-    localStorage.setItem('currentPrediction', JSON.stringify(predictionData));
+      console.log('📤 Sending prediction request...');
 
-    // Simpan ke history
-    const existingHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
-    const historyItem = {
-      id: Date.now(),
-      ...predictionData,
-      result: '', // Akan diisi di halaman result
-      confidence: ''
-    };
-    existingHistory.unshift(historyItem);
-    localStorage.setItem('predictionHistory', JSON.stringify(existingHistory));
+      const response = await fetch('http://localhost:5000/api/predict', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-access-token': token
+        },
+        body: JSON.stringify(predictionData)
+      });
 
-    // Tutup modal dan navigasi ke result dengan path yang benar
-    setIsConfirmModalVisible(false);
-    router.push('/predict/results');
+      console.log('📥 Prediction response status:', response.status);
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          alert('Sesi Anda telah berakhir. Silakan login kembali.');
+          localStorage.removeItem('auth_token');
+          setAuthStatus('unauthenticated');
+          return;
+        } else {
+          const errorText = await response.text();
+          throw new Error(`HTTP ${response.status}: ${errorText}`);
+        }
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('✅ Prediction successful!');
+        
+        const predictionResult = {
+          inputs: inputs,
+          snr: snr,
+          inputType: predictionData.inputType,
+          result: result.data.prediction,
+          confidence: result.data.confidence,
+          qualityAssessment: result.data.quality_assessment,
+          id: result.data.id,
+          userId: result.data.user_id,
+          userInfo: result.data.user_info,
+          modelInfo: result.data.model_info, // Tambahkan model info
+          timestamp: result.data.timestamp || new Date().toISOString(),
+          date: new Date().toLocaleDateString('id-ID'),
+          analysisTime: new Date().toLocaleString('id-ID')
+        };
+
+        localStorage.setItem('currentPrediction', JSON.stringify(predictionResult));
+
+        const existingHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
+        existingHistory.unshift(predictionResult);
+        localStorage.setItem('predictionHistory', JSON.stringify(existingHistory));
+
+        router.push('/predict/results');
+      } else {
+        alert(`Error: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('❌ Error melakukan prediksi:', error);
+      alert('Terjadi kesalahan saat melakukan prediksi. Silakan coba lagi.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
-    // Jika dibatalkan, tutup modal konfirmasi
     setIsConfirmModalVisible(false);
   };
 
   const toggleAltPage = () => {
-    setIsAltPageVisible(!isAltPageVisible); // Toggle antara input manual dan CSV upload
+    setIsAltPageVisible(!isAltPageVisible);
   };
 
   return (
     <div className="relative min-h-screen flex flex-col justify-between bg-gradient-animation">
       <Navbar />
       
-      {/* Background dengan overlay yang diperbaiki */}
+      {/* Background */}
       <div
         className="absolute inset-0 z-0"
         style={{
@@ -94,16 +326,17 @@ const Predict = () => {
         }}
       ></div>
 
-      {/* Hero Section dengan design yang diperbaiki */}
+      {/* Hero Section */}
       <div className="sm:text-4xl md:text-6xl lg:text-7xl mt-32 text-white font-bold text-center relative z-20 mb-8">
         <h1 className="drop-shadow-2xl">Predict Your Fiber Optic Network</h1>
         <p className="text-lg md:text-xl text-blue-200 font-light mt-4 max-w-2xl mx-auto px-4">
+          {user ? `Welcome, ${user.name}!` : 'Welcome to OptiPredict!'}
         </p>
       </div>
 
       <div className="absolute inset-0 w-full mt-28 animated-background bg-gradient-to-tl from-gray-800/80 via-neutral-800/80 to-indigo-800/80 z-0"></div>
       
-      {/* Toggle Button dengan design yang diperbaiki */}
+      {/* Toggle Button */}
       <div className="text-center my-3 relative z-20">
         <button
           onClick={toggleAltPage}
@@ -116,9 +349,9 @@ const Predict = () => {
         </button>
       </div>
 
-      {/* Kondisi untuk menampilkan input manual atau AltPage */}
+      {/* Input Form atau AltPage */}
       {isAltPageVisible ? (
-        <AltPage /> // Komponen untuk upload CSV
+        <AltPage />
       ) : (
         <div className="text-black relative z-20 w-full lg:w-4/5 xl:w-3/4 bg-white/95 backdrop-blur-lg py-8 px-8 rounded-2xl shadow-2xl mx-auto my-8 border border-white/20">
           {/* Header Section */}
@@ -130,7 +363,7 @@ const Predict = () => {
               Manual Input
             </h2>
             <p className="text-gray-600 text-base">
-              Please enter values for P1 to P30. These values should be between 0 and 10, and SNR should be between 0 and 30.
+              Please enter values for P1 to P30 (0.00-10.00) and SNR (0.00-30.00).
             </p>
           </div>
 
@@ -154,13 +387,21 @@ const Predict = () => {
                       name={`P${i + 1}`}
                       value={inputs[i]}
                       onChange={(e) => handleInputChange(i, e.target.value)}
+                      onBlur={(e) => handleInputBlur(i, e.target.value)}
                       required
                       min="0"
                       max="10"
-                      step="0.1"
-                      placeholder="0-10"
-                      className="w-full p-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300 ease-in-out text-black bg-gray-50 hover:bg-white group-hover:border-gray-300"
+                      step="0.01"
+                      placeholder="0.00-10.00"
+                      className={`w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all duration-300 ease-in-out text-black bg-gray-50 hover:bg-white group-hover:border-gray-300 ${
+                        inputErrors[i] 
+                          ? 'border-red-500 focus:border-red-500 focus:ring-red-200' 
+                          : 'border-gray-200 focus:border-blue-500 focus:ring-blue-200'
+                      }`}
                     />
+                    {inputErrors[i] && (
+                      <p className="text-red-500 text-xs mt-1">Please enter a valid number (0-10)</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -181,28 +422,49 @@ const Predict = () => {
                   type="number"
                   id="snr"
                   value={snr}
-                  onChange={(e) => setSnr(e.target.value)}
+                  onChange={(e) => handleSnrChange(e.target.value)}
+                  onBlur={(e) => handleSnrBlur(e.target.value)}
                   required
                   min="0"
                   max="30"
-                  step="0.1"
-                  placeholder="0-30"
-                  className="w-full p-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all duration-300 ease-in-out text-black bg-gray-50 hover:bg-white"
+                  step="0.01"
+                  placeholder="0.00-30.00"
+                  className={`w-full p-3 border-2 rounded-lg focus:outline-none focus:ring-2 transition-all duration-300 ease-in-out text-black bg-gray-50 hover:bg-white ${
+                    snrError 
+                      ? 'border-red-500 focus:border-red-500 focus:ring-red-200' 
+                      : 'border-gray-200 focus:border-green-500 focus:ring-green-200'
+                  }`}
                 />
+                {snrError && (
+                  <p className="text-red-500 text-xs mt-1">Please enter a valid number (0-30)</p>
+                )}
               </div>
             </div>
 
-            {/* Button Predict dengan design yang diperbaiki */}
+            {/* Button Predict */}
             <div className="flex justify-center mt-8 pt-6 border-t">
               <button
                 type="submit"
-                className="group relative px-12 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-lg font-semibold rounded-xl transition-all duration-300 ease-in-out hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-4 focus:ring-green-300 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+                disabled={isLoading}
+                className="group relative px-12 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white text-lg font-semibold rounded-xl transition-all duration-300 ease-in-out hover:from-green-600 hover:to-emerald-700 focus:outline-none focus:ring-4 focus:ring-green-300 shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="flex items-center">
-                  <svg className="w-5 h-5 mr-2 group-hover:animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  Start Prediction
+                  {isLoading ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5 mr-2 group-hover:animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                      </svg>
+                      Start Prediction
+                    </>
+                  )}
                 </span>
               </button>
             </div>
@@ -210,11 +472,11 @@ const Predict = () => {
         </div>
       )}
 
-      {/* Modal Konfirmasi dengan scrollbar yang tetap di dalam kotak */}
+      {/* Modal Konfirmasi */}
       {isConfirmModalVisible && (
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full h-[600px] flex flex-col">
-            {/* Modal Header - Fixed */}
+            {/* Modal Header */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-8 py-6 rounded-t-2xl flex-shrink-0">
               <h2 className="text-2xl font-bold text-white flex items-center">
                 <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -225,7 +487,7 @@ const Predict = () => {
               <p className="text-blue-100 mt-1">Please review your input values before proceeding</p>
             </div>
 
-            {/* Modal Content - Scrollable */}
+            {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-8">
               <div className="mb-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">P1 to P30 Values:</h3>
@@ -233,19 +495,23 @@ const Predict = () => {
                   {inputs.map((input, index) => (
                     <div key={index} className="text-center bg-white p-2 rounded border">
                       <div className="text-xs text-gray-500 mb-1">P{index + 1}</div>
-                      <div className="font-semibold text-gray-800">{input || 'Empty'}</div>
+                      <div className="font-semibold text-gray-800">
+                        {input ? parseFloat(input).toFixed(2) : 'Empty'}
+                      </div>
                     </div>
                   ))}
                 </div>
                 
                 <h3 className="text-lg font-semibold text-gray-800 mb-2">SNR:</h3>
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <span className="text-xl font-bold text-gray-800">{snr || 'Empty'}</span>
+                  <span className="text-xl font-bold text-gray-800">
+                    {snr ? parseFloat(snr).toFixed(2) : 'Empty'}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Modal Footer - Fixed */}
+            {/* Modal Footer */}
             <div className="flex-shrink-0 p-8 pt-0">
               <div className="flex flex-col sm:flex-row gap-4 justify-end">
                 <button
@@ -256,15 +522,28 @@ const Predict = () => {
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 font-medium shadow-lg"
+                  disabled={isLoading}
+                  className="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all duration-200 font-medium shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Confirm & Predict
+                  {isLoading ? 'Processing...' : 'Confirm & Predict'}
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* CSS untuk menghilangkan spinner browser */}
+      <style jsx>{`
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type="number"] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
     </div>
   );
 };
