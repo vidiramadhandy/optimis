@@ -1,11 +1,66 @@
 // src/lib/useAuth.js
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export function useAuth() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [user, setUser] = useState(null);
   const router = useRouter();
+
+  // Fungsi untuk cek autentikasi
+  const checkAuth = async () => {
+    try {
+      setIsCheckingAuth(true);
+      
+      // Ambil token dari localStorage (sesuaikan dengan nama yang Anda gunakan)
+      const token = localStorage.getItem('auth_token');
+      
+      if (!token) {
+        setIsAuthenticated(false);
+        setIsCheckingAuth(false);
+        return false;
+      }
+
+      // Verifikasi token dengan backend
+      const response = await fetch('http://localhost:5000/api/auth/check', {
+        method: 'GET',
+        headers: {
+          'x-access-token': token
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.authenticated) {
+          setIsAuthenticated(true);
+          setUser(result.user);
+          setIsCheckingAuth(false);
+          return true;
+        }
+      }
+      
+      // Jika token tidak valid
+      localStorage.removeItem('auth_token');
+      setIsAuthenticated(false);
+      setIsCheckingAuth(false);
+      return false;
+      
+    } catch (error) {
+      console.error('Error checking authentication:', error);
+      localStorage.removeItem('auth_token');
+      setIsAuthenticated(false);
+      setIsCheckingAuth(false);
+      return false;
+    }
+  };
+
+  // Cek autentikasi saat hook pertama kali digunakan
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
   const login = async (email, password) => {
     try {
@@ -28,6 +83,19 @@ export function useAuth() {
       
       if (data.token) {
         localStorage.setItem('auth_token', data.token);
+        
+        // Simpan data user jika ada
+        if (data.id && data.name && data.email) {
+          const userData = {
+            id: data.id,
+            name: data.name,
+            email: data.email
+          };
+          localStorage.setItem('userData', JSON.stringify(userData));
+          setUser(userData);
+        }
+        
+        setIsAuthenticated(true);
         router.push('/home');
         return true;
       }
@@ -80,6 +148,9 @@ export function useAuth() {
       });
       
       localStorage.removeItem('auth_token');
+      localStorage.removeItem('userData');
+      setIsAuthenticated(false);
+      setUser(null);
       router.push('/login');
       return true;
     } catch (err) {
@@ -88,11 +159,25 @@ export function useAuth() {
     }
   };
 
+  // Fungsi untuk redirect ke login jika tidak terautentikasi
+  const requireAuth = () => {
+    if (!isCheckingAuth && !isAuthenticated) {
+      router.push('/login');
+      return false;
+    }
+    return true;
+  };
+
   return {
     login,
     register,
     logout,
+    checkAuth,
+    requireAuth,
     error,
     loading,
+    isAuthenticated,
+    isCheckingAuth,
+    user,
   };
 }
