@@ -29,6 +29,7 @@
     "react-lorem-ipsum": "^1.4.10",
     "react-router-dom": "^7.5.2",
     "swr": "^2.3.3",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.3"
   },
   "devDependencies": {

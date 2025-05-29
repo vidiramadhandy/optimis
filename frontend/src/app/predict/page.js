@@ -13,21 +13,35 @@ const Predict = () => {
   const router = useRouter();
 
   const handleInputChange = (index, value) => {
-    const newInputs = [...inputs];
-    newInputs[index] = value;
-    setInputs(newInputs);
+    // Validasi untuk memastikan format angka dengan maksimal 3 desimal
+    if (value === '' || /^\d*\.?\d{0,3}$/.test(value)) {
+      const newInputs = [...inputs];
+      newInputs[index] = value;
+      setInputs(newInputs);
+    }
+  };
+
+  const handleSnrChange = (value) => {
+    // Validasi untuk SNR dengan maksimal 3 desimal
+    if (value === '' || /^\d*\.?\d{0,3}$/.test(value)) {
+      setSnr(value);
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // Validasi yang diperbaiki
+    // Validasi yang diperbaiki dengan support 3 desimal
     const hasEmptyInputs = inputs.some(input => input === '');
-    const hasInvalidInputs = inputs.some(input => input !== '' && (parseFloat(input) < 0 || parseFloat(input) > 10));
-    const hasInvalidSnr = snr === '' || parseFloat(snr) < 0 || parseFloat(snr) > 30;
+    const hasInvalidInputs = inputs.some(input => {
+      if (input === '') return false;
+      const numValue = parseFloat(input);
+      return isNaN(numValue) || numValue < 0 || numValue > 10;
+    });
+    const hasInvalidSnr = snr === '' || isNaN(parseFloat(snr)) || parseFloat(snr) < 0 || parseFloat(snr) > 30;
 
     if (hasEmptyInputs || hasInvalidInputs || hasInvalidSnr) {
-      alert("Silakan lengkapi semua input dengan nilai yang valid.");
+      alert("Please complete all inputs with valid values (P1-P30: 0-10, SNR: 0-30).");
       return;
     }
 
@@ -40,29 +54,18 @@ const Predict = () => {
     const predictionData = {
       inputs: inputs,
       snr: snr,
-      inputType: isAltPageVisible ? 'CSV' : 'Manual',
+      inputType: isAltPageVisible ? 'CSV/Excel' : 'Manual',
       timestamp: new Date().toISOString(),
-      date: new Date().toLocaleDateString('id-ID'),
-      analysisTime: new Date().toLocaleString('id-ID')
+      date: new Date().toLocaleDateString('en-GB'), // Format DD/MM/YYYY
+      analysisTime: new Date().toLocaleString('en-GB')
     };
 
     // Simpan data untuk halaman result
     localStorage.setItem('currentPrediction', JSON.stringify(predictionData));
 
-    // Simpan ke history
-    const existingHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
-    const historyItem = {
-      id: Date.now(),
-      ...predictionData,
-      result: '', // Akan diisi di halaman result
-      confidence: ''
-    };
-    existingHistory.unshift(historyItem);
-    localStorage.setItem('predictionHistory', JSON.stringify(existingHistory));
-
-    // Tutup modal dan navigasi ke result dengan path yang benar
+    // Tutup modal dan navigasi ke predict/results
     setIsConfirmModalVisible(false);
-    router.push('/predict/results');
+    router.push('/predict/results'); // PERBAIKAN: Ubah kembali ke '/predict/results'
   };
 
   const handleCancel = () => {
@@ -130,7 +133,7 @@ const Predict = () => {
               Manual Input
             </h2>
             <p className="text-gray-600 text-base">
-              Please enter values for P1 to P30. These values should be between 0 and 10, and SNR should be between 0 and 30.
+              Please enter values for P1 to P30 (0-10) with up to 3 decimal places, and SNR (0-30) with up to 3 decimal places.
             </p>
           </div>
 
@@ -149,16 +152,15 @@ const Predict = () => {
                       {`P${i + 1}`}
                     </label>
                     <input
-                      type="number"
+                      type="text"
                       id={`P${i + 1}`}
                       name={`P${i + 1}`}
                       value={inputs[i]}
                       onChange={(e) => handleInputChange(i, e.target.value)}
                       required
-                      min="0"
-                      max="10"
-                      step="0.1"
-                      placeholder="0-10"
+                      placeholder="0.000"
+                      pattern="^\d*\.?\d{0,3}$"
+                      title="Enter a number between 0-10 with up to 3 decimal places (e.g., 5.123)"
                       className="w-full p-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all duration-300 ease-in-out text-black bg-gray-50 hover:bg-white group-hover:border-gray-300"
                     />
                   </div>
@@ -178,15 +180,14 @@ const Predict = () => {
                   SNR
                 </label>
                 <input
-                  type="number"
+                  type="text"
                   id="snr"
                   value={snr}
-                  onChange={(e) => setSnr(e.target.value)}
+                  onChange={(e) => handleSnrChange(e.target.value)}
                   required
-                  min="0"
-                  max="30"
-                  step="0.1"
-                  placeholder="0-30"
+                  placeholder="0.000"
+                  pattern="^\d*\.?\d{0,3}$"
+                  title="Enter SNR value between 0-30 with up to 3 decimal places (e.g., 25.123)"
                   className="w-full p-3 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 transition-all duration-300 ease-in-out text-black bg-gray-50 hover:bg-white"
                 />
               </div>
@@ -233,7 +234,9 @@ const Predict = () => {
                   {inputs.map((input, index) => (
                     <div key={index} className="text-center bg-white p-2 rounded border">
                       <div className="text-xs text-gray-500 mb-1">P{index + 1}</div>
-                      <div className="font-semibold text-gray-800">{input || 'Empty'}</div>
+                      <div className="font-semibold text-gray-800 text-sm">
+                        {input || 'Empty'}
+                      </div>
                     </div>
                   ))}
                 </div>

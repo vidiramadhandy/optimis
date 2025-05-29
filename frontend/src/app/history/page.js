@@ -10,65 +10,51 @@ const History = () => {
   const router = useRouter();
 
   useEffect(() => {
-    // Simulasi data history - dalam implementasi nyata, ambil dari API atau localStorage
-    const mockHistoryData = [
-      {
-        id: 1,
-        date: '21/05/2025',
-        inputType: 'Manual',
-        result: 'Normal',
-        inputs: Array.from({length: 30}, (_, i) => (Math.random() * 10).toFixed(1)),
-        snr: (Math.random() * 30).toFixed(1),
-        confidence: (Math.random() * 20 + 80).toFixed(1),
-        analysisTime: '21/05/2025, 14:30:25'
-      },
-      {
-        id: 2,
-        date: '21/05/2025',
-        inputType: 'CSV',
-        result: 'Fiber Cut',
-        inputs: Array.from({length: 30}, (_, i) => (Math.random() * 10).toFixed(1)),
-        snr: (Math.random() * 30).toFixed(1),
-        confidence: (Math.random() * 20 + 80).toFixed(1),
-        analysisTime: '21/05/2025, 16:45:12'
-      },
-      {
-        id: 3,
-        date: '20/05/2025',
-        inputType: 'Manual',
-        result: 'Signal Degradation',
-        inputs: Array.from({length: 30}, (_, i) => (Math.random() * 10).toFixed(1)),
-        snr: (Math.random() * 30).toFixed(1),
-        confidence: (Math.random() * 20 + 80).toFixed(1),
-        analysisTime: '20/05/2025, 09:15:33'
+    // Load history data from localStorage
+    const loadHistory = () => {
+      try {
+        const savedHistory = localStorage.getItem('predictionHistory');
+        if (savedHistory) {
+          const parsedHistory = JSON.parse(savedHistory);
+          setHistoryData(parsedHistory);
+        } else {
+          setHistoryData([]);
+        }
+      } catch (error) {
+        console.error('Error loading history:', error);
+        setHistoryData([]);
+      } finally {
+        setIsLoading(false);
       }
-    ];
+    };
 
-    // Simulasi loading
-    setTimeout(() => {
-      setHistoryData(mockHistoryData);
-      setIsLoading(false);
-    }, 1000);
+    loadHistory();
   }, []);
 
   const handleViewDetail = (historyItem) => {
-    // Simpan data ke localStorage untuk diakses di halaman detail
-    localStorage.setItem('historyDetail', JSON.stringify(historyItem));
-    router.push(`/history/detail/${historyItem.id}`);
+    // Save data to localStorage for detail page
+    localStorage.setItem('selectedHistoryItem', JSON.stringify(historyItem));
+    router.push('/history/detail');
   };
 
   const getResultColor = (result) => {
     switch (result) {
       case 'Normal':
         return 'text-green-600 bg-green-100';
+      case 'Fiber Tapping':
+        return 'text-purple-600 bg-purple-100';
+      case 'Bad Splice':
+        return 'text-orange-600 bg-orange-100';
+      case 'Bending':
+        return 'text-yellow-600 bg-yellow-100';
+      case 'Dirty Connector':
+        return 'text-blue-600 bg-blue-100';
       case 'Fiber Cut':
         return 'text-red-600 bg-red-100';
-      case 'Signal Degradation':
-        return 'text-yellow-600 bg-yellow-100';
-      case 'Power Loss':
-        return 'text-orange-600 bg-orange-100';
-      case 'Connector Issue':
-        return 'text-blue-600 bg-blue-100';
+      case 'PC Connector':
+        return 'text-indigo-600 bg-indigo-100';
+      case 'Reflector':
+        return 'text-gray-600 bg-gray-100';
       default:
         return 'text-gray-600 bg-gray-100';
     }
@@ -113,57 +99,67 @@ const History = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-400">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="border border-gray-400 px-4 py-3 text-left font-semibold">No</th>
-                  <th className="border border-gray-400 px-4 py-3 text-left font-semibold">Tanggal</th>
-                  <th className="border border-gray-400 px-4 py-3 text-left font-semibold">Input Type</th>
-                  <th className="border border-gray-400 px-4 py-3 text-left font-semibold">Hasil Gangguan</th>
-                  <th className="border border-gray-400 px-4 py-3 text-center font-semibold">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyData.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-200">
-                    <td className="border border-gray-400 px-4 py-3 text-center font-medium">
-                      {index + 1}
-                    </td>
-                    <td className="border border-gray-400 px-4 py-3">
-                      {item.date}
-                    </td>
-                    <td className="border border-gray-400 px-4 py-3">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        item.inputType === 'Manual' 
-                          ? 'bg-blue-100 text-blue-800' 
-                          : 'bg-purple-100 text-purple-800'
-                      }`}>
-                        {item.inputType}
-                      </span>
-                    </td>
-                    <td className="border border-gray-400 px-4 py-3">
-                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${getResultColor(item.result)}`}>
-                        {item.result}
-                      </span>
-                    </td>
-                    <td className="border border-gray-400 px-4 py-3 text-center">
-                      <button
-                        onClick={() => handleViewDetail(item)}
-                        className="px-4 py-2 bg-green-500 text-white text-sm rounded-md transition-all duration-300 ease-in-out hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-md"
-                      >
-                        View
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            
-            {historyData.length === 0 && (
+            {historyData.length === 0 ? (
               <div className="text-center py-20 text-gray-500">
                 <p className="text-xl">No prediction history found</p>
                 <p className="text-sm mt-2">Start making predictions to see your history here</p>
+                <button
+                  onClick={() => router.push('/predict')}
+                  className="mt-4 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors duration-300"
+                >
+                  Make Your First Prediction
+                </button>
               </div>
+            ) : (
+              <table className="w-full border-collapse border border-gray-400">
+                <thead>
+                  <tr className="bg-gray-100">
+                    <th className="border border-gray-400 px-4 py-3 text-left font-semibold">No</th>
+                    <th className="border border-gray-400 px-4 py-3 text-left font-semibold">Date</th>
+                    <th className="border border-gray-400 px-4 py-3 text-left font-semibold">Input Type</th>
+                    <th className="border border-gray-400 px-4 py-3 text-left font-semibold">Fault Result</th>
+                    <th className="border border-gray-400 px-4 py-3 text-left font-semibold">Confidence</th>
+                    <th className="border border-gray-400 px-4 py-3 text-center font-semibold">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyData.map((item, index) => (
+                    <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-200">
+                      <td className="border border-gray-400 px-4 py-3 text-center font-medium">
+                        {index + 1}
+                      </td>
+                      <td className="border border-gray-400 px-4 py-3">
+                        {item.date}
+                      </td>
+                      <td className="border border-gray-400 px-4 py-3">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          item.inputType === 'Manual' 
+                            ? 'bg-blue-100 text-blue-800' 
+                            : 'bg-purple-100 text-purple-800'
+                        }`}>
+                          {item.inputType}
+                        </span>
+                      </td>
+                      <td className="border border-gray-400 px-4 py-3">
+                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${getResultColor(item.result)}`}>
+                          {item.result}
+                        </span>
+                      </td>
+                      <td className="border border-gray-400 px-4 py-3 font-semibold">
+                        {item.confidence}%
+                      </td>
+                      <td className="border border-gray-400 px-4 py-3 text-center">
+                        <button
+                          onClick={() => handleViewDetail(item)}
+                          className="px-4 py-2 bg-green-500 text-white text-sm rounded-md transition-all duration-300 ease-in-out hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-md"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </div>
         )}

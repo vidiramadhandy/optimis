@@ -15,61 +15,101 @@ const Results = () => {
   const router = useRouter();
 
   useEffect(() => {
-    // Ambil data dari localStorage yang disimpan dari halaman predict
+    // Get data from localStorage saved from predict page
     const currentPrediction = localStorage.getItem('currentPrediction');
     
     if (currentPrediction) {
       const predictionData = JSON.parse(currentPrediction);
       
-      // Set data input dari predict
+      // Set input data from predict
       setInputs(predictionData.inputs);
       setSnr(predictionData.snr);
       setInputType(predictionData.inputType);
       setAnalysisTime(predictionData.analysisTime);
       
-      // Simulasi prediksi berdasarkan data input
+      // Simulate prediction based on input data
       setTimeout(() => {
-        // Simulasi algoritma prediksi berdasarkan nilai input
-        const predictions = ['Fiber Cut', 'Normal Operation', 'Signal Degradation', 'Power Loss', 'Connector Issue'];
+        // 7 types of new faults
+        const predictions = [
+          'Normal',
+          'Fiber Tapping',
+          'Bad Splice',
+          'Bending',
+          'Dirty Connector',
+          'Fiber Cut',
+          'PC Connector',
+          'Reflector'
+        ];
         
-        // Simulasi logika prediksi berdasarkan nilai SNR dan parameter
+        // Prediction logic simulation based on SNR values and parameters
         let prediction;
         const snrValue = parseFloat(predictionData.snr);
-        const avgParams = predictionData.inputs.reduce((sum, val) => sum + parseFloat(val), 0) / 30;
+        const avgParams = predictionData.inputs.reduce((sum, val) => sum + parseFloat(val || 0), 0) / 30;
+        const maxParam = Math.max(...predictionData.inputs.map(val => parseFloat(val || 0)));
+        const minParam = Math.min(...predictionData.inputs.map(val => parseFloat(val || 0)));
+        const paramVariance = maxParam - minParam;
         
-        if (snrValue < 10 || avgParams < 3) {
+        // More detailed prediction logic
+        if (snrValue > 25 && avgParams > 7 && paramVariance < 2) {
+          prediction = 'Normal';
+        } else if (snrValue < 5 || avgParams < 1) {
           prediction = 'Fiber Cut';
-        } else if (snrValue > 25 && avgParams > 7) {
-          prediction = 'Normal Operation';
-        } else if (snrValue < 15) {
-          prediction = 'Signal Degradation';
-        } else if (avgParams < 4) {
-          prediction = 'Power Loss';
+        } else if (snrValue < 10 && paramVariance > 5) {
+          prediction = 'Bad Splice';
+        } else if (snrValue < 15 && avgParams < 4) {
+          prediction = 'Bending';
+        } else if (snrValue < 18 && maxParam < 3) {
+          prediction = 'Dirty Connector';
+        } else if (snrValue > 20 && paramVariance > 8) {
+          prediction = 'Fiber Tapping';
+        } else if (snrValue < 12 && avgParams > 6) {
+          prediction = 'PC Connector';
         } else {
-          prediction = 'Connector Issue';
+          prediction = 'Reflector';
         }
         
         setPredictionResult(prediction);
         
-        // Generate confidence level berdasarkan konsistensi data
+        // Generate confidence level based on data consistency
         const confidenceLevel = Math.min(95, Math.max(75, 85 + (snrValue / 30) * 10));
         setConfidence(confidenceLevel.toFixed(1));
         
-        // Update history dengan hasil prediksi
-        const existingHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
-        if (existingHistory.length > 0) {
-          existingHistory[0].result = prediction;
-          existingHistory[0].confidence = confidenceLevel.toFixed(1);
-          localStorage.setItem('predictionHistory', JSON.stringify(existingHistory));
-        }
+        // Save to history
+        saveToHistory(predictionData, prediction, confidenceLevel.toFixed(1));
         
         setIsLoading(false);
       }, 2000);
     } else {
-      // Jika tidak ada data, redirect ke predict
+      // If no data, redirect to predict
       router.push('/predict');
     }
   }, [router]);
+
+  // Function to save to history
+  const saveToHistory = (inputData, result, confidenceLevel) => {
+    const historyItem = {
+      id: Date.now(),
+      date: new Date().toLocaleDateString('en-GB'), // Format DD/MM/YYYY
+      inputType: inputData.inputType,
+      result: result,
+      confidence: confidenceLevel,
+      inputs: inputData.inputs,
+      snr: inputData.snr,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Get existing history
+    const existingHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
+    
+    // Add new item at the beginning of array
+    const updatedHistory = [historyItem, ...existingHistory];
+    
+    // Limit history to maximum 50 items
+    const limitedHistory = updatedHistory.slice(0, 50);
+    
+    // Save back to localStorage
+    localStorage.setItem('predictionHistory', JSON.stringify(limitedHistory));
+  };
 
   const handleBackToPredict = () => {
     router.push('/predict');
@@ -79,20 +119,57 @@ const Results = () => {
     router.push('/history');
   };
 
-  const getRecommendation = (result) => {
+  const getMaintenanceRecommendation = (result) => {
     switch (result) {
+      case 'Normal':
+        return 'Perform routine maintenance every 6 months. Monitor network parameters regularly and conduct preventive connector cleaning.';
+      
+      case 'Fiber Tapping':
+        return 'Immediately conduct physical inspection along the cable route. Check for unauthorized devices attached to the cable. Enhance physical security and real-time monitoring.';
+      
+      case 'Bad Splice':
+        return 'Identify splice location using OTDR. Perform re-splicing with calibrated fusion splicer. Ensure cleaving angle <1° and splice loss <0.1dB.';
+      
+      case 'Bending':
+        return 'Check minimum bend radius (>30mm for single mode). Reposition cable with proper cable management. Use bend-insensitive fiber if necessary.';
+      
+      case 'Dirty Connector':
+        return 'Clean end-face using lint-free wipes and 99% IPA. Inspect with fiber microscope (400x magnification). Ensure no contaminants on core area.';
+      
       case 'Fiber Cut':
-        return 'Immediate maintenance required. Check physical cable connections.';
-      case 'Normal Operation':
-        return 'Network is operating within normal parameters.';
-      case 'Signal Degradation':
-        return 'Monitor signal quality and consider preventive maintenance.';
-      case 'Power Loss':
-        return 'Check power supply and backup systems.';
-      case 'Connector Issue':
-        return 'Inspect and clean fiber optic connectors.';
+        return 'Localize break point with OTDR. Perform emergency splicing or install temporary patch cable. For permanent repair, use fusion splicing with protective sleeve.';
+      
+      case 'PC Connector':
+        return 'Check physical contact on end-face. Perform re-polishing if necessary. Ensure insertion loss <0.3dB and return loss >40dB. Replace connector if permanently damaged.';
+      
+      case 'Reflector':
+        return 'Identify reflection source using OTDR trace analysis. Check for APC/PC connector mismatch. Install optical isolator if needed to reduce back-reflection.';
+      
       default:
-        return 'Please consult with technical team for further analysis.';
+        return 'Conduct in-depth analysis with technical team. Use combination of OTDR, power meter, and visual fault locator for comprehensive diagnosis.';
+    }
+  };
+
+  const getPredictionColor = (result) => {
+    switch (result) {
+      case 'Normal':
+        return 'bg-green-100 text-green-800 border-green-300';
+      case 'Fiber Tapping':
+        return 'bg-purple-100 text-purple-800 border-purple-300';
+      case 'Bad Splice':
+        return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'Bending':
+        return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'Dirty Connector':
+        return 'bg-blue-100 text-blue-800 border-blue-300';
+      case 'Fiber Cut':
+        return 'bg-red-100 text-red-800 border-red-300';
+      case 'PC Connector':
+        return 'bg-indigo-100 text-indigo-800 border-indigo-300';
+      case 'Reflector':
+        return 'bg-gray-100 text-gray-800 border-gray-300';
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
 
@@ -151,7 +228,7 @@ const Results = () => {
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-4 text-left">Input Values</h2>
           
-          {/* Grid untuk P1-P30 */}
+          {/* Grid for P1-P30 */}
           <div className="grid grid-cols-5 gap-4 mb-6">
             {inputs.map((input, index) => (
               <div key={index} className="border border-gray-300 p-3 rounded-md text-center bg-gray-50">
@@ -176,9 +253,9 @@ const Results = () => {
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-4 text-left">Prediction Result</h2>
           
-          <div className="border-2 border-gray-400 p-6 rounded-lg bg-gray-50 min-h-[200px] flex flex-col justify-center">
-            <div className="text-center">
-              <h3 className="text-xl font-semibold mb-4 text-gray-700">Gangguan:</h3>
+          <div className="border-2 border-gray-300 p-6 rounded-lg bg-gray-50">
+            <div className="text-center mb-6">
+              <h3 className="text-xl font-semibold mb-4 text-gray-700">Fault Type:</h3>
               
               {isLoading ? (
                 <div className="flex justify-center items-center">
@@ -186,32 +263,33 @@ const Results = () => {
                   <span className="ml-3 text-lg text-gray-600">Processing prediction...</span>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className={`text-3xl font-bold p-4 rounded-lg ${
-                    predictionResult === 'Fiber Cut' ? 'bg-red-100 text-red-800' :
-                    predictionResult === 'Normal Operation' ? 'bg-green-100 text-green-800' :
-                    predictionResult === 'Signal Degradation' ? 'bg-yellow-100 text-yellow-800' :
-                    predictionResult === 'Power Loss' ? 'bg-orange-100 text-orange-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {predictionResult}
-                  </div>
-                  
-                  {/* Additional Information */}
-                  <div className="text-sm text-gray-600 mt-4 p-4 bg-white rounded border">
-                    <p className="mb-2">
-                      <strong>Confidence Level:</strong> {confidence}%
-                    </p>
-                    <p className="mb-2">
-                      <strong>Analysis Time:</strong> {analysisTime}
-                    </p>
-                    <p>
-                      <strong>Recommendation:</strong> {getRecommendation(predictionResult)}
-                    </p>
-                  </div>
+                <div className={`text-2xl font-bold p-4 rounded-lg border-2 ${getPredictionColor(predictionResult)}`}>
+                  {predictionResult}
                 </div>
               )}
             </div>
+            
+            {!isLoading && (
+              <div className="border-2 border-gray-300 p-4 rounded-lg bg-white">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <span className="font-semibold text-gray-700">Confidence Level:</span>
+                    <span className="ml-2 text-lg font-bold text-blue-600">{confidence}%</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-gray-700">Analysis Time:</span>
+                    <span className="ml-2">{analysisTime}</span>
+                  </div>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <h4 className="font-bold text-gray-700 mb-2">Maintenance Recommendation:</h4>
+                  <p className="text-sm text-gray-600 leading-relaxed">
+                    {getMaintenanceRecommendation(predictionResult)}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

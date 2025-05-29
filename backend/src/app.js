@@ -24,7 +24,7 @@ app.use('/api/users', userRoutes);
 
 // Default route
 app.get('/', (req, res) => {
-  res.send('Welcome to the OptiPredict API');
+  res.json('Welcome to the OptiPredict API');
 });
 
 // Error handler
