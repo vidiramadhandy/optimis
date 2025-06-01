@@ -42,7 +42,7 @@ const Profile = () => {
   };
 
   const handleBack = () => {
-    router.back();
+    router.push('/home'); // Perbaikan: arahkan ke halaman home
   };
 
   const getInitials = (name) => {
@@ -74,33 +74,33 @@ const Profile = () => {
       <div className="max-w-md mx-auto">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
           
-          {/* Header dengan tombol kembali */}
-          <div className="relative bg-gradient-to-r from-gray-800 to-indigo-800 px-6 py-4">
+          {/* Header dengan tombol kembali - Perbaikan posisi */}
+          <div className="relative bg-gradient-to-r from-gray-800 to-indigo-800 px-6 py-6 pb-16">
             <button
               onClick={handleBack}
-              className="absolute left-4 top-1/2 transform -translate-y-1/2 p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors duration-200 cursor-pointer"
+              className="absolute left-4 top-4 p-2 rounded-full bg-white/20 hover:bg-white/30 cursor-pointer transition-colors duration-200"
             >
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-xl font-bold text-white text-center">User Profile</h1>
+            <h1 className="text-xl font-bold text-white text-center mt-2">User Profile</h1>
           </div>
 
-          {/* Avatar Section */}
-          <div className="relative -mt-12 flex justify-center">
-            <div className={`w-24 h-24 rounded-full ${getAvatarColor(user.name)} flex items-center justify-center border-4 border-white shadow-lg`}>
-              <span className="text-2xl font-bold text-white">
+          {/* Avatar Section - Perbaikan posisi */}
+          <div className="relative -mt-8 flex justify-center mb-4">
+            <div className={`w-20 h-20 rounded-full ${getAvatarColor(user.name)} flex items-center justify-center border-4 border-white shadow-lg`}>
+              <span className="text-xl font-bold text-white">
                 {getInitials(user.name)}
               </span>
             </div>
           </div>
 
           {/* Profile Content */}
-          <div className="px-6 py-6 pt-4">
+          <div className="px-6 py-4">
             
             {/* User Info Cards */}
-            <div className="space-y-4 mb-8">
+            <div className="space-y-4 mb-6">
               
               {/* Name Card */}
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
@@ -122,17 +122,6 @@ const Profile = () => {
                   <label className="text-sm font-medium text-gray-600">Email Address</label>
                 </div>
                 <p className="text-lg font-semibold text-gray-800">{user.email}</p>
-              </div>
-
-              {/* User ID Card */}
-              <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-                <div className="flex items-center mb-2">
-                  <svg className="w-5 h-5 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                  </svg>
-                  <label className="text-sm font-medium text-gray-600">User ID</label>
-                </div>
-                <p className="text-lg font-semibold text-gray-800">#{user.id}</p>
               </div>
 
               {/* Member Since */}
@@ -159,7 +148,7 @@ const Profile = () => {
               {/* Edit Profile Button */}
               <button
                 onClick={() => router.push('/profile/edit')}
-                className="w-full py-3 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 transition-colors duration-200 flex items-center justify-center cursor-pointer"
+                className="w-full py-3 bg-blue-500 text-white font-semibold rounded-xl hover:bg-blue-600 cursor-pointer transition-colors duration-200 flex items-center justify-center"
               >
                 <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -171,7 +160,7 @@ const Profile = () => {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="w-full py-3 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-colors duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full py-3 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 cursor-pointer transition-colors duration-200 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoggingOut ? (
                   <>
@@ -206,7 +195,7 @@ const Profile = () => {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={() => router.push('/predict')}
-              className="p-4 bg-green-50 rounded-xl border border-green-200 hover:bg-green-100 transition-colors duration-200 cursor-pointer"
+              className="p-4 bg-green-50 rounded-xl border border-green-200 hover:bg-green-100 cursor-pointer transition-colors duration-200"
             >
               <div className="text-center">
                 <svg className="w-8 h-8 text-green-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -218,7 +207,7 @@ const Profile = () => {
             
             <button
               onClick={() => router.push('/history')}
-              className="p-4 bg-purple-50 rounded-xl border border-purple-200 hover:bg-purple-100 transition-colors duration-200 cursor-pointer"
+              className="p-4 bg-purple-50 rounded-xl border border-purple-200 hover:bg-purple-100 cursor-pointer transition-colors duration-200"
             >
               <div className="text-center">
                 <svg className="w-8 h-8 text-purple-500 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
