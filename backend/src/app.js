@@ -1,4 +1,4 @@
-// backend/src/app.js
+// backend/src/app.js - KODE LENGKAP
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -90,31 +90,92 @@ app.get('/api/auth/check', async (req, res) => {
   }
 });
 
-// Endpoint prediksi - dengan autentikasi Express
+// PERBAIKAN: Endpoint prediksi dengan timeout dinamis untuk SNR tinggi
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
     console.log('🔐 Authenticated request from user ID:', req.userId);
     
+    const { inputs, snr, inputType } = req.body;
+    
+    // Validasi input dari frontend React
+    if (!inputs || !Array.isArray(inputs) || inputs.length !== 30 || !snr) {
+      return res.status(400).json({
+        success: false,
+        message: 'Input tidak valid - diperlukan 30 parameter dan SNR'
+      });
+    }
+    
+    // Konversi input kosong menjadi 0 (sesuai dengan frontend)
+    const processedInputs = inputs.map(input => {
+      if (input === '' || input === null || input === undefined) {
+        return 0;
+      }
+      return parseFloat(input);
+    });
+    
+    const snrValue = parseFloat(snr);
+    const isHighSNR = snrValue > 10;
+    
     const requestData = {
-      ...req.body,
-      userId: req.userId
+      inputs: processedInputs,
+      snr: snrValue,
+      userId: req.userId,
+      inputType: inputType || 'Manual'
     };
     
     console.log('📤 Sending to Flask ML service:', {
       userId: requestData.userId,
       inputsLength: requestData.inputs?.length,
-      snr: requestData.snr
+      snr: requestData.snr,
+      isHighSNR: isHighSNR
     });
     
+    // PERBAIKAN: Timeout dinamis berdasarkan nilai SNR
+    let timeoutDuration;
+    if (isHighSNR) {
+      timeoutDuration = 180000; // 3 menit untuk SNR tinggi
+      console.log('⚠️ High SNR detected, using extended timeout (3 minutes)');
+    } else {
+      timeoutDuration = 60000; // 1 menit untuk SNR normal
+      console.log('✅ Normal SNR, using standard timeout (1 minute)');
+    }
+    
     const response = await axios.post(`${FLASK_ML_URL}/predict`, requestData, {
-      timeout: 30000,
+      timeout: timeoutDuration,
       headers: {
         'Content-Type': 'application/json'
       }
     });
     
     console.log('📥 Response from Flask ML service:', response.data.success);
-    res.json(response.data);
+    
+    // Format response untuk frontend React
+    if (response.data.success) {
+      res.json({
+        success: true,
+        data: {
+          id: response.data.data.id,
+          prediction: response.data.data.prediction,
+          confidence: response.data.data.confidence,
+          quality_assessment: response.data.data.quality_assessment,
+          timestamp: response.data.data.timestamp,
+          user_id: response.data.data.user_id,
+          manual_input_id: response.data.data.manual_input_id,
+          snr_info: response.data.data.snr_info,
+          model_info: response.data.data.model_info,
+          user_info: response.data.data.user_info,
+          processing_time: response.data.data.processing_time,
+          database_status: response.data.data.database_status,
+          high_snr_optimization: response.data.data.high_snr_optimization || false
+        },
+        message: response.data.message
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: response.data.message || 'Prediksi gagal'
+      });
+    }
     
   } catch (error) {
     console.error('❌ Error dalam routing prediksi:', error.message);
@@ -125,6 +186,16 @@ app.post('/api/predict', verifyToken, async (req, res) => {
       res.status(503).json({
         success: false,
         message: 'ML service tidak tersedia. Pastikan Flask berjalan di port 5001.'
+      });
+    } else if (error.code === 'ECONNRESET' || error.message.includes('timeout')) {
+      const snrValue = parseFloat(req.body.snr);
+      const isHighSNR = snrValue > 10;
+      
+      res.status(408).json({
+        success: false,
+        message: isHighSNR 
+          ? 'Request timeout - SNR tinggi membutuhkan waktu lebih lama. Silakan coba lagi dalam beberapa saat.'
+          : 'Request timeout - coba lagi dalam beberapa saat'
       });
     } else {
       res.status(500).json({
@@ -167,38 +238,6 @@ app.get('/api/prediction/:id', verifyToken, async (req, res) => {
   }
 });
 
-// TAMBAHAN: Endpoint untuk menghapus prediksi berdasarkan ID
-app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('🗑️ Deleting prediction ID:', id, 'User:', req.userId);
-    
-    const response = await axios.delete(`${FLASK_ML_URL}/prediction/${id}`, {
-      params: { userId: req.userId },
-      timeout: 10000
-    });
-    
-    res.json(response.data);
-    
-  } catch (error) {
-    console.error('Error deleting prediction:', error.message);
-    
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else if (error.code === 'ECONNREFUSED') {
-      res.status(503).json({
-        success: false,
-        message: 'Flask ML service tidak tersedia'
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Gagal menghapus prediksi'
-      });
-    }
-  }
-});
-
 // Endpoint untuk history prediksi user
 app.get('/api/predictions', verifyToken, async (req, res) => {
   try {
@@ -230,7 +269,39 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
   }
 });
 
-// TAMBAHAN: Endpoint untuk menghapus semua prediksi user
+// Endpoint untuk menghapus prediksi berdasarkan ID
+app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    console.log('🗑️ Deleting prediction ID:', id, 'User:', req.userId);
+    
+    const response = await axios.delete(`${FLASK_ML_URL}/prediction/${id}`, {
+      params: { userId: req.userId },
+      timeout: 10000
+    });
+    
+    res.json(response.data);
+    
+  } catch (error) {
+    console.error('Error deleting prediction:', error.message);
+    
+    if (error.response) {
+      res.status(error.response.status).json(error.response.data);
+    } else if (error.code === 'ECONNREFUSED') {
+      res.status(503).json({
+        success: false,
+        message: 'Flask ML service tidak tersedia'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Gagal menghapus prediksi'
+      });
+    }
+  }
+});
+
+// Endpoint untuk menghapus semua prediksi user
 app.delete('/api/predictions/all', verifyToken, async (req, res) => {
   try {
     console.log('🗑️ Deleting all predictions for user:', req.userId);
@@ -284,12 +355,12 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     services: {
       auth: 'Express handles authentication',
-      ml: 'Flask handles ML predictions'
+      ml: 'Flask handles ML predictions with SNR optimization'
     },
     endpoints: {
       auth: '/api/auth',
       authCheck: '/api/auth/check',
-      predict: '/api/predict',
+      predict: '/api/predict (optimized for high SNR)',
       predictions: '/api/predictions',
       predictionDetail: '/api/prediction/:id',
       deletePrediction: '/api/prediction/:id (DELETE)',
@@ -311,14 +382,15 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`🚀 Express server berjalan di http://localhost:${PORT}`);
   console.log(`🔐 Menangani autentikasi dan routing ke ML service`);
+  console.log(`⚡ Optimized untuk SNR tinggi dengan timeout dinamis`);
   console.log(`📋 Endpoints tersedia:`);
-  console.log(`   - GET    /api/auth/check`);
-  console.log(`   - POST   /api/predict`);
-  console.log(`   - GET    /api/prediction/:id`);
+  console.log(`   - GET  /api/auth/check`);
+  console.log(`   - POST /api/predict (timeout: 1-3 menit berdasarkan SNR)`);
+  console.log(`   - GET  /api/prediction/:id`);
   console.log(`   - DELETE /api/prediction/:id`);
-  console.log(`   - GET    /api/predictions`);
+  console.log(`   - GET  /api/predictions`);
   console.log(`   - DELETE /api/predictions/all`);
-  console.log(`   - GET    /api/ml-health`);
+  console.log(`   - GET  /api/ml-health`);
 });
 
 module.exports = app;
