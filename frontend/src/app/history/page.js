@@ -1,3 +1,4 @@
+// frontend/src/app/history/page.js - KODE LENGKAP DENGAN PERBAIKAN
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -84,17 +85,25 @@ const History = () => {
     }
   }, [authStatus, router]);
 
+  // PERBAIKAN: Endpoint yang benar untuk fetch history data
   const fetchHistoryData = async (token) => {
     try {
       console.log('🔍 Fetching history data for user...');
+      setError(null); // Reset error state
 
+      // PERBAIKAN: Gunakan endpoint yang benar sesuai dengan app.js Express
       const response = await fetch('http://localhost:5000/api/predictions?limit=20', {
         method: 'GET',
         headers: {
           'x-access-token': token,
           'Content-Type': 'application/json'
-        }
+        },
+        // Tambahkan timeout untuk menghindari hanging request
+        signal: AbortSignal.timeout(15000) // 15 detik timeout
       });
+
+      console.log('📥 History API response status:', response.status);
+      console.log('📥 History API response URL:', response.url);
 
       if (response.ok) {
         const result = await response.json();
@@ -102,21 +111,65 @@ const History = () => {
         
         if (result.success && result.data) {
           setHistoryData(result.data);
+          console.log(`📊 Loaded ${result.data.length} history records`);
+        } else {
+          console.log('⚠️ API returned success=false or no data');
+          setHistoryData([]);
         }
       } else {
-        console.log('❌ Failed to fetch history data:', response.status);
-        setError('Gagal mengambil data history');
+        // Handle different HTTP status codes
+        let errorMessage = 'Failed to fetch history data';
+        
+        try {
+          const errorResult = await response.json();
+          errorMessage = errorResult.message || errorMessage;
+        } catch (parseError) {
+          console.log('Could not parse error response');
+        }
+
+        console.log('❌ Failed to fetch history data:', response.status, errorMessage);
+        
+        if (response.status === 401 || response.status === 403) {
+          // Token expired or invalid
+          localStorage.removeItem('auth_token');
+          setAuthStatus('unauthenticated');
+          return;
+        }
+        
+        setError(`${errorMessage} (Status: ${response.status})`);
       }
     } catch (error) {
-      console.error('Error fetching history:', error);
-      setError('Terjadi kesalahan saat mengambil data history');
+      console.error('❌ Error fetching history:', error);
+      
+      // Handle different types of errors
+      if (error.name === 'AbortError') {
+        setError('Request timeout - Please check your connection and try again');
+      } else if (error.message.includes('Failed to fetch')) {
+        setError('Network error - Please check if the backend server is running on port 5000');
+      } else {
+        setError(`An error occurred: ${error.message}`);
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Enhanced retry function
+  const handleRetry = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      await fetchHistoryData(token);
+    } else {
+      setAuthStatus('unauthenticated');
+    }
+  };
+
+  // PERBAIKAN: Delete prediction dengan endpoint yang benar
   const handleDeletePrediction = async (predictionId) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus prediksi ini?')) {
+    if (!confirm('Are you sure you want to delete this prediction?')) {
       return;
     }
 
@@ -125,6 +178,7 @@ const History = () => {
       
       const token = localStorage.getItem('auth_token');
       
+      // PERBAIKAN: Gunakan endpoint yang benar
       const response = await fetch(`http://localhost:5000/api/prediction/${predictionId}`, {
         method: 'DELETE',
         headers: {
@@ -138,24 +192,26 @@ const History = () => {
       if (result.success) {
         // Hapus dari state local
         setHistoryData(prev => prev.filter(item => item.id !== predictionId));
-        alert('Prediksi berhasil dihapus');
+        alert('Prediction successfully deleted');
       } else {
         alert(`Error: ${result.message}`);
       }
     } catch (error) {
       console.error('Error deleting prediction:', error);
-      alert('Terjadi kesalahan saat menghapus prediksi');
+      alert('An error occurred during prediction deletion');
     } finally {
       setDeleteLoading(prev => ({ ...prev, [predictionId]: false }));
     }
   };
 
+  // PERBAIKAN: Delete all predictions dengan endpoint yang benar
   const handleDeleteAllPredictions = async () => {
     try {
       setIsLoading(true);
       
       const token = localStorage.getItem('auth_token');
       
+      // PERBAIKAN: Gunakan endpoint yang benar
       const response = await fetch('http://localhost:5000/api/predictions/all', {
         method: 'DELETE',
         headers: {
@@ -169,13 +225,13 @@ const History = () => {
       if (result.success) {
         setHistoryData([]);
         setShowDeleteAllModal(false);
-        alert(`Berhasil menghapus ${result.deleted_count} prediksi`);
+        alert(`Successfully deleted ${result.deleted_count} predictions`);
       } else {
         alert(`Error: ${result.message}`);
       }
     } catch (error) {
       console.error('Error deleting all predictions:', error);
-      alert('Terjadi kesalahan saat menghapus semua prediksi');
+      alert('An error occurred while deleting all predictions');
     } finally {
       setIsLoading(false);
     }
@@ -194,6 +250,22 @@ const History = () => {
     router.push('/predict/results');
   };
 
+  // Enhanced confidence formatting
+  const formatConfidence = (confidenceScore) => {
+    if (!confidenceScore && confidenceScore !== 0) return '0.0';
+    
+    const numValue = parseFloat(confidenceScore);
+    if (isNaN(numValue)) return '0.0';
+    
+    // Jika nilai dalam format desimal (0-1), konversi ke persentase
+    if (numValue >= 0 && numValue <= 1) {
+      return (numValue * 100).toFixed(1);
+    }
+    
+    // Jika sudah dalam format persentase
+    return numValue.toFixed(1);
+  };
+
   const getQualityColor = (quality) => {
     switch (quality?.toLowerCase()) {
       case 'excellent': return 'bg-green-100 text-green-800';
@@ -210,16 +282,20 @@ const History = () => {
     const prediction = typeof result === 'string' ? result : result.prediction;
     
     switch (prediction) {
+      case 'Normal': return 'bg-green-100 text-green-800';
+      case 'Fiber Tapping': return 'bg-red-100 text-red-800';
+      case 'Bad Splice': return 'bg-orange-100 text-orange-800';
+      case 'Bending Event': return 'bg-yellow-100 text-yellow-800';
+      case 'Dirty Connector': return 'bg-purple-100 text-purple-800';
       case 'Fiber Cut': return 'bg-red-100 text-red-800';
-      case 'Normal Operation': return 'bg-green-100 text-green-800';
-      case 'Signal Degradation': return 'bg-yellow-100 text-yellow-800';
-      case 'Power Loss': return 'bg-orange-100 text-orange-800';
+      case 'PC Connector': return 'bg-blue-100 text-blue-800';
+      case 'Reflector': return 'bg-indigo-100 text-indigo-800';
       default: return 'bg-blue-100 text-blue-800';
     }
   };
 
   // Loading state
-  if (!mounted || isCheckingAuth || authStatus === 'checking' || isLoading) {
+  if (!mounted || isCheckingAuth || authStatus === 'checking') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center">
@@ -237,17 +313,54 @@ const History = () => {
     return null;
   }
 
-  if (error) {
+  // Enhanced error display dengan retry option
+  if (error && !isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="text-center">
-          <div className="text-red-500 text-xl mb-4">⚠️ {error}</div>
-          <button
-            onClick={() => router.push('/predict')}
-            className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-          >
-            Back to Predict
-          </button>
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8 mt-20">
+          <div className="text-center py-12">
+            <div className="text-red-500 text-6xl mb-4">⚠️</div>
+            <h3 className="text-xl font-semibold text-red-600 mb-2">Failed to Load History</h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">{error}</p>
+            <div className="flex gap-4 justify-center">
+              <button
+                onClick={handleRetry}
+                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => router.push('/predict')}
+                className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 cursor-pointer transition-colors"
+              >
+                Back to Predict
+              </button>
+            </div>
+            
+            {/* Debug Information */}
+            <div className="mt-6 p-4 bg-gray-100 rounded-lg text-left max-w-md mx-auto">
+              <h4 className="font-semibold text-gray-700 mb-2">Debug Info:</h4>
+              <p className="text-sm text-gray-600">Expected endpoint: /api/predictions</p>
+              <p className="text-sm text-gray-600">Backend running on: http://localhost:5000</p>
+              <p className="text-sm text-gray-600">Check console for detailed logs</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading state during data fetch
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Navbar />
+        <div className="container mx-auto px-4 py-8 mt-20">
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading prediction history...</p>
+          </div>
         </div>
       </div>
     );
@@ -277,7 +390,7 @@ const History = () => {
           <div className="flex justify-between items-center mb-6">
             <button
               onClick={() => router.push('/predict')}
-              className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center"
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer flex items-center transition-colors"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -286,7 +399,7 @@ const History = () => {
             </button>
             <button
               onClick={() => setShowDeleteAllModal(true)}
-              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center"
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 cursor-pointer transition-colors flex items-center"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -300,12 +413,12 @@ const History = () => {
           <div className="text-center py-12">
             <div className="text-gray-400 text-6xl mb-4">📝</div>
             <h3 className="text-xl font-semibold text-gray-600 mb-2">No Predictions Yet</h3>
-            <p className="text-gray-500 mb-6">Start by making your first fiber optic network prediction.</p>
+            <p className="text-gray-500 mb-4">Start by making your first fiber optic network prediction</p>
             <button
               onClick={() => router.push('/predict')}
-              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 cursor-pointer transition-colors"
             >
-              Make Prediction
+              Make Your First Prediction
             </button>
           </div>
         ) : (
@@ -344,7 +457,7 @@ const History = () => {
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <div className="text-sm text-gray-600 mb-1">Confidence</div>
                       <div className="text-lg font-bold text-blue-600">
-                        {((prediction.confidence_score || 0) * 100).toFixed(1)}%
+                        {formatConfidence(prediction.confidence_score)}%
                       </div>
                     </div>
                     
@@ -363,7 +476,7 @@ const History = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => handleViewDetail(prediction.id)}
-                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm flex items-center"
+                        className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm flex items-center cursor-pointer"
                       >
                         <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -374,7 +487,7 @@ const History = () => {
                       <button
                         onClick={() => handleDeletePrediction(prediction.id)}
                         disabled={deleteLoading[prediction.id]}
-                        className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                        className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center cursor-pointer"
                       >
                         {deleteLoading[prediction.id] ? (
                           <>
@@ -418,13 +531,13 @@ const History = () => {
             <div className="flex gap-4 justify-end">
               <button
                 onClick={() => setShowDeleteAllModal(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 cursor-pointer transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleDeleteAllPredictions}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 cursor-pointer transition-colors"
               >
                 Delete All
               </button>

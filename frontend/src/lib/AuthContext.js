@@ -138,8 +138,8 @@ export function AuthProvider({ children }) {
       const data = await response.json();
       
       if (!response.ok) {
-        setError(data.message || 'Login gagal');
-        throw new Error(data.message || 'Login gagal');
+        setError(data.message || 'Login failed');
+        throw new Error(data.message || 'Login failed');
       }
       
       if (data.token) {
@@ -177,11 +177,11 @@ export function AuthProvider({ children }) {
         return true;
       }
       
-      setError('Token tidak ditemukan dalam respons');
+      setError('Token not found during responding');
       return false;
     } catch (error) {
       console.error('Login failed:', error);
-      setError(error.message || 'Terjadi kesalahan saat login');
+      setError(error.message || 'Error during login');
       throw error;
     } finally {
       setIsLoading(false);
@@ -203,7 +203,7 @@ export function AuthProvider({ children }) {
       const data = await response.json();
       
       if (!response.ok) {
-        setError(data.message || 'Registrasi gagal');
+        setError(data.message || 'Registrasi failed');
         return false;
       }
       
@@ -211,7 +211,7 @@ export function AuthProvider({ children }) {
       return true;
     } catch (err) {
       console.error('Registration failed:', err);
-      setError('Terjadi kesalahan saat registrasi');
+      setError('Error during registration');
       return false;
     } finally {
       setIsLoading(false);
@@ -246,7 +246,7 @@ export function AuthProvider({ children }) {
       
       // Show notification jika auto logout
       if (isAutoLogout) {
-        alert('Anda telah logout otomatis karena tidak aktif selama 1 jam');
+        alert('You have been logged out due to inactivity');
       }
       
       router.push('/login');
