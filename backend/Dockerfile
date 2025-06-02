@@ -23,7 +23,8 @@ RUN chown -R expressjs:nodejs /app
 
 USER expressjs
 
-EXPOSE 5000
+#✅ Sesuai dengan docker-compose
+EXPOSE 5000  
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "src/app.js"]
