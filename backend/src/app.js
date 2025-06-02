@@ -1,4 +1,4 @@
-// backend/src/app.js - KODE LENGKAP
+// backend/src/app.js - KODE LENGKAP DENGAN PERBAIKAN
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -13,7 +13,7 @@ const db = require('./db');
 const app = express();
 
 app.use(cors({
-  origin: 'http://localhost:3000',
+  origin: ['http://localhost:3000', 'http://192.168.0.24:3000'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token']
@@ -22,7 +22,18 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 
-const FLASK_ML_URL = 'http://localhost:5001';
+const FLASK_ML_URL = 'http://python-ml:5000'; // Menggunakan container name
+
+// PERBAIKAN: Tambahkan Health Check Endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ 
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    service: 'OptiPredict Backend',
+    version: '1.0.0',
+    uptime: process.uptime()
+  });
+});
 
 // Routes autentikasi
 app.use('/api/auth', authRoutes);
@@ -353,11 +364,13 @@ app.get('/', (req, res) => {
   res.json({ 
     message: 'OptiPredict API Server',
     version: '1.0.0',
+    status: 'healthy',
     services: {
       auth: 'Express handles authentication',
       ml: 'Flask handles ML predictions with SNR optimization'
     },
     endpoints: {
+      health: '/api/health',
       auth: '/api/auth',
       authCheck: '/api/auth/check',
       predict: '/api/predict (optimized for high SNR)',
@@ -370,20 +383,33 @@ app.get('/', (req, res) => {
   });
 });
 
+// PERBAIKAN: Error handling middleware
 app.use((err, req, res, next) => {
   console.error('❌ Unhandled error:', err.stack);
   res.status(500).json({
     success: false,
-    message: 'Terjadi kesalahan internal server'
+    message: 'Terjadi kesalahan internal server',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// PERBAIKAN: 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint tidak ditemukan',
+    path: req.originalUrl
   });
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Express server berjalan di http://localhost:${PORT}`);
   console.log(`🔐 Menangani autentikasi dan routing ke ML service`);
   console.log(`⚡ Optimized untuk SNR tinggi dengan timeout dinamis`);
+  console.log(`🏥 Health check tersedia di /api/health`);
   console.log(`📋 Endpoints tersedia:`);
+  console.log(`   - GET  /api/health`);
   console.log(`   - GET  /api/auth/check`);
   console.log(`   - POST /api/predict (timeout: 1-3 menit berdasarkan SNR)`);
   console.log(`   - GET  /api/prediction/:id`);
@@ -391,6 +417,11 @@ app.listen(PORT, () => {
   console.log(`   - GET  /api/predictions`);
   console.log(`   - DELETE /api/predictions/all`);
   console.log(`   - GET  /api/ml-health`);
+  
+  // Test database connection
+  db.query('SELECT 1')
+    .then(() => console.log('✅ Koneksi database OptiPredict berhasil'))
+    .catch(err => console.error('❌ Koneksi database gagal:', err.message));
 });
 
 module.exports = app;
