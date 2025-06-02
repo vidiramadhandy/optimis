@@ -12,12 +12,12 @@ services:
       - "0.0.0.0:3000:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://192.168.0.24/api
+      - NEXT_PUBLIC_API_URL=http://192.168.0.24:5000
     networks:
       - app-network
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
 
   # Backend Express - menggunakan port 5000
   backend:
@@ -39,9 +39,15 @@ services:
       - app-network
     depends_on:
       mysql:
-        condition: service_healthy  # PERUBAHAN UTAMA
+        condition: service_healthy
       python-ml:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # Python ML Service - menggunakan port 5001
   python-ml:
@@ -62,7 +68,13 @@ services:
       - app-network
     depends_on:
       mysql:
-        condition: service_healthy  # PERUBAHAN UTAMA
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # MySQL Database
   mysql:
@@ -72,21 +84,21 @@ services:
     environment:
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
       MYSQL_DATABASE: optipredict_database
+      MYSQL_ROOT_HOST: "%"
     expose:
       - "3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./backend/db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - app-network
-    command: --default-authentication-plugin=mysql_native_password
-    # TAMBAHAN MINIMAL:
+    command: --default-authentication-plugin=mysql_native_password --bind-address=0.0.0.0
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 20s
-      retries: 10
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--user=root"]
       interval: 10s
-      start_period: 40s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
   # Nginx Reverse Proxy
   nginx:
@@ -97,14 +109,19 @@ services:
       - "0.0.0.0:80:80"
       - "0.0.0.0:443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     networks:
       - app-network
     depends_on:
       frontend:
-        condition: service_started
+        condition: service_healthy
       backend:
-        condition: service_started
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   app-network:
