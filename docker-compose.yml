@@ -16,7 +16,8 @@ services:
     networks:
       - app-network
     depends_on:
-      - backend
+      backend:
+        condition: service_started
 
   # Backend Express - menggunakan port 5000
   backend:
@@ -26,7 +27,7 @@ services:
     container_name: express-backend
     restart: unless-stopped
     ports:
-      - "0.0.0.0:5000:5000"  # Express pada port 5000
+      - "0.0.0.0:5000:5000"
     environment:
       - NODE_ENV=production
       - DB_HOST=mysql
@@ -37,8 +38,10 @@ services:
     networks:
       - app-network
     depends_on:
-      - mysql
-      - python-ml
+      mysql:
+        condition: service_healthy  # PERUBAHAN UTAMA
+      python-ml:
+        condition: service_started
 
   # Python ML Service - menggunakan port 5001
   python-ml:
@@ -48,7 +51,7 @@ services:
     container_name: python-ml
     restart: unless-stopped
     ports:
-      - "0.0.0.0:5001:5000"  # Flask pada port 5001 (host) -> 5000 (container)
+      - "0.0.0.0:5001:5000"
     environment:
       - FLASK_ENV=production
       - DB_HOST=mysql
@@ -58,7 +61,8 @@ services:
     networks:
       - app-network
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy  # PERUBAHAN UTAMA
 
   # MySQL Database
   mysql:
@@ -76,6 +80,13 @@ services:
     networks:
       - app-network
     command: --default-authentication-plugin=mysql_native_password
+    # TAMBAHAN MINIMAL:
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+      start_period: 40s
 
   # Nginx Reverse Proxy
   nginx:
@@ -90,8 +101,10 @@ services:
     networks:
       - app-network
     depends_on:
-      - frontend
-      - backend
+      frontend:
+        condition: service_started
+      backend:
+        condition: service_started
 
 networks:
   app-network:
