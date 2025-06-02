@@ -12,8 +12,8 @@ RUN adduser --system --uid 1001 expressjs
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install ALL dependencies (termasuk axios)
+RUN npm install && npm cache clean --force
 
 # Copy source code
 COPY . .
@@ -23,7 +23,7 @@ RUN chown -R expressjs:nodejs /app
 
 USER expressjs
 
-EXPOSE 4000
+EXPOSE 5000
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "src/app.js"]
