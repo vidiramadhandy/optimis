@@ -1,50 +1,80 @@
-{
-  "name": "optimis",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "NEXT_PRIVATE_STANDALONE=true next build",
-    "start": "next start",
-    "lint": "next lint"
-  },
-  "dependencies": {
-    "@headlessui/react": "^2.2.2",
-    "@hookform/resolvers": "^5.0.1",
-    "@material-tailwind/react": "^2.1.10",
-    "axios": "^1.9.0",
-    "csrf": "^3.1.0",
-    "exceljs": "^4.4.0",
-    "js-cookie": "^3.0.5",
-    "lorem-ipsum": "^2.0.8",
-    "next": "^15.2.4",
-    "nodemailer": "^6.10.1",
-    "papaparse": "^5.5.2",
-    "prop-types": "^15.8.1",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "react-dropzone": "^14.3.8",
-    "react-hook-form": "^7.56.1",
-    "react-icons": "^5.5.0",
-    "react-lorem-ipsum": "^1.4.10",
-    "react-router-dom": "^7.5.2",
-    "swr": "^2.3.3",
-    "zod": "^3.24.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "autoprefixer": "^10.4.21",
-    "postcss": "^8.5.3",
-    "tailwindcss": "^4.0.17"
-  },
-  "optionalDependencies": {
-    "@tailwindcss/oxide-linux-x64-musl": "^4.0.1",
-    "@tailwindcss/oxide-linux-x64-gnu": "^4.0.1",
-    "@tailwindcss/oxide-linux-arm64-musl": "^4.0.1",
-    "@tailwindcss/oxide-linux-arm64-gnu": "^4.0.1",
-    "lightningcss-linux-x64-musl": "^1.29.1",
-    "lightningcss-linux-x64-gnu": "^1.29.1",
-    "lightningcss-linux-arm64-musl": "^1.29.1",
-    "lightningcss-linux-arm64-gnu": "^1.29.1"
-  }
-}
+version: '3.8'
+
+services:
+  nextjs-app:
+    build: ./frontend
+    container_name: nextjs-app
+    restart: always
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - frontend-network
+    depends_on:
+      - express-api
+
+  express-api:
+    build: ./backend/express
+    container_name: express-api
+    restart: always
+    ports:
+      - "127.0.0.1:4000:4000"
+    networks:
+      - frontend-network
+      - backend-network
+    depends_on:
+      - flask-ml
+      - mysql-db
+
+  flask-ml:
+    build: ./backend/flask
+    container_name: flask-ml
+    restart: always
+    ports:
+      - "127.0.0.1:5000:5000"
+    networks:
+      - backend-network
+    depends_on:
+      - mysql-db
+
+  mysql-db:
+    image: mysql:8.0
+    container_name: mysql-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: your_secure_password
+      MYSQL_DATABASE: your_database
+      MYSQL_USER: your_user
+      MYSQL_PASSWORD: your_password
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - backend-network
+
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: nginx-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    networks:
+      - frontend-network
+    depends_on:
+      - nextjs-app
+
+networks:
+  frontend-network:
+    driver: bridge
+    internal: false
+  backend-network:
+    driver: bridge
+    internal: true
+
+volumes:
+  mysql_data:
