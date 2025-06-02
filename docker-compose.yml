@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Frontend Next.js
+  # Frontend Next.js dengan static IP
   frontend:
     build:
       context: ./frontend
@@ -9,16 +9,17 @@ services:
     container_name: nextjs-frontend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "192.168.10.1:3000:3000"  # Bind ke IP spesifik
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://localhost/api
+      - NEXT_PUBLIC_API_URL=http://192.168.10.2/api
+    networks:
+      custom_net:
+        ipv4_address: 192.168.10.10  # IP internal container
     depends_on:
       - backend
-    networks:
-      - app-network
 
-  # Backend Express
+  # Backend Express dengan static IP
   backend:
     build:
       context: ./backend
@@ -26,21 +27,21 @@ services:
     container_name: express-backend
     restart: unless-stopped
     ports:
-      - "4000:4000"
+      - "192.168.10.2:4000:4000"  # Bind ke IP spesifik
     environment:
       - NODE_ENV=production
       - DB_HOST=mysql
       - DB_USER=root
       - DB_PASSWORD=
       - DB_NAME=optipredict_database
-      - JWT_SECRET=optipredict_secret_key_2025
+    networks:
+      custom_net:
+        ipv4_address: 192.168.10.11  # IP internal container
     depends_on:
       - mysql
       - python-ml
-    networks:
-      - app-network
 
-  # Python ML Service
+  # Python ML Service dengan static IP
   python-ml:
     build:
       context: ./backend/python
@@ -48,19 +49,20 @@ services:
     container_name: python-ml
     restart: unless-stopped
     ports:
-      - "5000:5000"
+      - "192.168.10.3:5000:5000"  # Bind ke IP spesifik
     environment:
       - FLASK_ENV=production
       - DB_HOST=mysql
       - DB_USER=root
       - DB_PASSWORD=
       - DB_NAME=optipredict_database
+    networks:
+      custom_net:
+        ipv4_address: 192.168.10.12  # IP internal container
     depends_on:
       - mysql
-    networks:
-      - app-network
 
-  # MySQL Database dengan password kosong
+  # MySQL Database
   mysql:
     image: mysql:8.0
     container_name: mysql-db
@@ -69,12 +71,13 @@ services:
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
       MYSQL_DATABASE: optipredict_database
     ports:
-      - "3306:3306"
+      - "192.168.10.4:3306:3306"  # Bind ke IP spesifik
     volumes:
       - mysql_data:/var/lib/mysql
       - ./db.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - app-network
+      custom_net:
+        ipv4_address: 192.168.10.13  # IP internal container
     command: --default-authentication-plugin=mysql_native_password
 
   # Nginx Reverse Proxy
@@ -83,18 +86,24 @@ services:
     container_name: nginx-proxy
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "192.168.10.5:80:80"      # Bind ke IP spesifik
+      - "192.168.10.5:443:443"    # Bind ke IP spesifik
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      custom_net:
+        ipv4_address: 192.168.10.14  # IP internal container
     depends_on:
       - frontend
       - backend
-    networks:
-      - app-network
 
 networks:
-  app-network:
+  custom_net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.10.0/24
+          gateway: 192.168.10.1
 
 volumes:
   mysql_data:
