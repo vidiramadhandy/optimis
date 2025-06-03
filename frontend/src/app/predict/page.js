@@ -118,10 +118,10 @@ const Predict = () => {
   };
 
   // Validasi bahwa tidak semua P1-P30 kosong
-  const validateNotAllEmpty = (inputsArray) => {
-    const nonEmptyInputs = inputsArray.filter(input => input !== '' && parseFloat(input) > 0);
-    return nonEmptyInputs.length > 0;
-  };
+  // const validateNotAllEmpty = (inputsArray) => {
+  //   const nonEmptyInputs = inputsArray.filter(input => input !== '' && parseFloat(input) > 0);
+  //   return nonEmptyInputs.length > 0;
+  // };
 
   // Handle input change untuk P1-P30
   const handleInputChange = (index, value) => {
@@ -130,14 +130,14 @@ const Predict = () => {
     setInputs(newInputs);
 
     // Validasi individual
-    const validation = validateInput(value, 0, 1);
-    const newErrors = [...inputErrors];
-    newErrors[index] = !validation.isValid;
-    setInputErrors(newErrors);
+    // const validation = validateInput(value, 0, 1);
+    // const newErrors = [...inputErrors];
+    // newErrors[index] = !validation.isValid;
+    // setInputErrors(newErrors);
 
-    // Validasi tidak semua kosong
-    const notAllEmpty = validateNotAllEmpty(newInputs);
-    setAllEmptyError(!notAllEmpty);
+    // // Validasi tidak semua kosong
+    // const notAllEmpty = validateNotAllEmpty(newInputs);
+    // setAllEmptyError(!notAllEmpty);
   };
 
   // Handle SNR change
@@ -166,15 +166,15 @@ const Predict = () => {
     }
     
     // Validasi tidak semua P1-P30 kosong
-    const notAllEmpty = validateNotAllEmpty(inputs);
-    if (!notAllEmpty) {
-      setAllEmptyError(true);
-      hasErrors = true;
-      alert("At least one parameter (P1-P30) must have a value greater than 0");
-      return;
-    } else {
-      setAllEmptyError(false);
-    }
+    // const notAllEmpty = validateNotAllEmpty(inputs);
+    // if (!notAllEmpty) {
+    //   setAllEmptyError(true);
+    //   hasErrors = true;
+    //   alert("At least one parameter (P1-P30) must have a value greater than 0");
+    //   return;
+    // } else {
+    //   setAllEmptyError(false);
+    // }
     
     // Validasi SNR
     let snrHasError = false;
