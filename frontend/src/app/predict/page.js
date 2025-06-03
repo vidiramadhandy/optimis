@@ -401,7 +401,7 @@ const Predict = () => {
               <div className="mb-8 border-t pt-8">
                 <h3 className="text-xl font-semibold text-gray-700 mb-6 flex items-center">
                   <span className="w-2 h-6 bg-green-500 rounded mr-3"></span>
-                  Signal-to-Noise Ratio - Range: 0.0 to 30.0
+                  Signal-to-Noise Ratio - Range: 0.1 to 30.0
                 </h3>
                 
                 <div className="max-w-xs">
