@@ -60,11 +60,8 @@ export default function Home() {
             {/* Introduction Section */}
             <section className="mb-20">
               <div className="bg-black bg-opacity-40 backdrop-blur-sm rounded-2xl p-8 md:p-12 border border-white border-opacity-10 shadow-2xl">
-                <h2 className="text-2xl md:text-3xl font-bold mb-6 text-cyan-300">
-                  Solusi Inovatif untuk Jaringan Optik
-                </h2>
                 <p className="text-lg md:text-xl text-gray-200 leading-relaxed">
-                  OptiPredict hadir sebagai solusi inovatif berbasis machine learning untuk pemeliharaan dan manajemen gangguan pada jaringan optik. Dengan memanfaatkan teknologi machine learning yang terintegrasi, OptiPredict memungkinkan pengguna menganalisis data otomatis serta memprediksi berbagai gangguan dengan tingkat akurasi yang tinggi.
+                  OptiPredict comes as an innovative machine learning-based solution for maintenance and fault management on optical networks. By utilizing integrated machine learning technology, OptiPredict allows users to automatically analyze data and predict various disturbances with a high level of accuracy.
                 </p>
               </div>
             </section>
@@ -73,7 +70,7 @@ export default function Home() {
             <section className="mb-20">
               <div className="text-center mb-12">
                 <h2 className="text-3xl md:text-4xl font-bold mb-4 text-white">
-                  Topologi Dasar OptiPredict
+                  OptiPredict Basic Topology
                 </h2>
                 <div className="w-24 h-1 bg-gradient-to-r from-blue-400 to-cyan-400 mx-auto rounded-full"></div>
               </div>
@@ -95,41 +92,9 @@ export default function Home() {
             {/* Features Section */}
             <section className="mb-16">
               <div className="bg-black bg-opacity-40 backdrop-blur-sm rounded-2xl p-8 md:p-12 border border-white border-opacity-10 shadow-2xl">
-                <h2 className="text-2xl md:text-3xl font-bold mb-6 text-cyan-300">
-                  Penjelasan Topologi
-                </h2>
                 <p className="text-lg md:text-xl text-gray-200 leading-relaxed">
-                  Platform ini didukung dengan antarmuka pengguna yang responsif dan memungkinkan akses cepat pemantauan kondisi jaringan optik dengan laporan yang mudah dipahami. Fitur manajemen data dan pelaporan memungkinkan pengguna untuk menyimpan riwayat prediksi dan mengoptimalkan proses pengambilan keputusan terkait pemeliharaan jaringan, sehingga mencegah kerusakan sebelum terjadi.
+                  The platform is supported with a responsive user interface and allows quick access to optical network condition monitoring with easy-to-understand reports. Data management and reporting features allow users to keep a history of predictions and optimize the decision-making process regarding network maintenance, thus preventing damage before it occurs.
                 </p>
-              </div>
-            </section>
-
-            {/* Key Features Grid */}
-            <section className="mb-16">
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div className="bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl p-6 shadow-lg">
-                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
-                    <span className="text-2xl">🤖</span>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">Machine Learning</h3>
-                  <p className="text-blue-100">Teknologi ML terintegrasi untuk analisis prediktif yang akurat</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-cyan-600 to-cyan-800 rounded-xl p-6 shadow-lg">
-                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
-                    <span className="text-2xl">📊</span>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">Analisis Otomatis</h3>
-                  <p className="text-cyan-100">Pemrosesan data otomatis untuk monitoring real-time</p>
-                </div>
-
-                <div className="bg-gradient-to-br from-purple-600 to-purple-800 rounded-xl p-6 shadow-lg md:col-span-2 lg:col-span-1">
-                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center mb-4">
-                    <span className="text-2xl">🔧</span>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3">Pemeliharaan Prediktif</h3>
-                  <p className="text-purple-100">Mencegah kerusakan sebelum terjadi dengan prediksi akurat</p>
-                </div>
               </div>
             </section>
 

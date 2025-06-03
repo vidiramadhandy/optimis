@@ -12,6 +12,7 @@ const Results = () => {
   const [inputType, setInputType] = useState('');
   const [analysisTime, setAnalysisTime] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [historySaved, setHistorySaved] = useState(false); // Prevent double save
   const router = useRouter();
 
   useEffect(() => {
@@ -29,18 +30,6 @@ const Results = () => {
       
       // Simulate prediction based on input data
       setTimeout(() => {
-        // 7 types of new faults
-        const predictions = [
-          'Normal',
-          'Fiber Tapping',
-          'Bad Splice',
-          'Bending',
-          'Dirty Connector',
-          'Fiber Cut',
-          'PC Connector',
-          'Reflector'
-        ];
-        
         // Prediction logic simulation based on SNR values and parameters
         let prediction;
         const snrValue = parseFloat(predictionData.snr);
@@ -49,33 +38,60 @@ const Results = () => {
         const minParam = Math.min(...predictionData.inputs.map(val => parseFloat(val || 0)));
         const paramVariance = maxParam - minParam;
         
-        // More detailed prediction logic
+        console.log('Debug values:', {
+          snrValue,
+          avgParams,
+          maxParam,
+          minParam,
+          paramVariance
+        });
+
+        // IMPROVED prediction logic with more balanced conditions
         if (snrValue > 25 && avgParams > 7 && paramVariance < 2) {
           prediction = 'Normal';
         } else if (snrValue < 5 || avgParams < 1) {
           prediction = 'Fiber Cut';
-        } else if (snrValue < 10 && paramVariance > 5) {
+        } else if (snrValue >= 5 && snrValue < 12 && paramVariance > 4) {
           prediction = 'Bad Splice';
-        } else if (snrValue < 15 && avgParams < 4) {
+        } else if (snrValue >= 12 && snrValue < 18 && avgParams < 5) {
           prediction = 'Bending';
-        } else if (snrValue < 18 && maxParam < 3) {
+        } else if (snrValue >= 10 && snrValue < 20 && maxParam < 4) {
           prediction = 'Dirty Connector';
-        } else if (snrValue > 20 && paramVariance > 8) {
+        } else if (snrValue >= 18 && snrValue <= 25 && paramVariance > 6) {
           prediction = 'Fiber Tapping';
-        } else if (snrValue < 12 && avgParams > 6) {
+        } else if (snrValue >= 8 && snrValue < 15 && avgParams >= 5 && avgParams <= 7) {
           prediction = 'PC Connector';
-        } else {
+        } else if (snrValue >= 15 && snrValue < 25 && paramVariance >= 3 && paramVariance <= 6) {
           prediction = 'Reflector';
+        } else {
+          // Fallback logic based on ranges
+          if (snrValue < 10) {
+            prediction = avgParams < 3 ? 'Fiber Cut' : 'Bad Splice';
+          } else if (snrValue < 20) {
+            if (avgParams < 4) {
+              prediction = 'Bending';
+            } else if (maxParam < 4) {
+              prediction = 'Dirty Connector';
+            } else {
+              prediction = 'PC Connector';
+            }
+          } else {
+            prediction = paramVariance > 5 ? 'Fiber Tapping' : 'Reflector';
+          }
         }
         
+        console.log('Final prediction:', prediction);
         setPredictionResult(prediction);
         
         // Generate confidence level based on data consistency
         const confidenceLevel = Math.min(95, Math.max(75, 85 + (snrValue / 30) * 10));
         setConfidence(confidenceLevel.toFixed(1));
         
-        // Save to history
-        saveToHistory(predictionData, prediction, confidenceLevel.toFixed(1));
+        // Save to history only once
+        if (!historySaved) {
+          saveToHistory(predictionData, prediction, confidenceLevel.toFixed(1));
+          setHistorySaved(true);
+        }
         
         setIsLoading(false);
       }, 2000);
@@ -83,9 +99,9 @@ const Results = () => {
       // If no data, redirect to predict
       router.push('/predict');
     }
-  }, [router]);
+  }, [router, historySaved]);
 
-  // Function to save to history
+  // Function to save to history (prevent duplicates)
   const saveToHistory = (inputData, result, confidenceLevel) => {
     const historyItem = {
       id: Date.now(),
@@ -101,17 +117,30 @@ const Results = () => {
     // Get existing history
     const existingHistory = JSON.parse(localStorage.getItem('predictionHistory') || '[]');
     
-    // Add new item at the beginning of array
-    const updatedHistory = [historyItem, ...existingHistory];
+    // Check if this prediction already exists (prevent duplicates)
+    const isDuplicate = existingHistory.some(item => 
+      item.timestamp === historyItem.timestamp || 
+      (Math.abs(new Date(item.timestamp) - new Date(historyItem.timestamp)) < 5000) // 5 seconds tolerance
+    );
     
-    // Limit history to maximum 50 items
-    const limitedHistory = updatedHistory.slice(0, 50);
-    
-    // Save back to localStorage
-    localStorage.setItem('predictionHistory', JSON.stringify(limitedHistory));
+    if (!isDuplicate) {
+      // Add new item at the beginning of array
+      const updatedHistory = [historyItem, ...existingHistory];
+      
+      // Limit history to maximum 50 items
+      const limitedHistory = updatedHistory.slice(0, 50);
+      
+      // Save back to localStorage
+      localStorage.setItem('predictionHistory', JSON.stringify(limitedHistory));
+      console.log('History saved successfully');
+    } else {
+      console.log('Duplicate entry prevented');
+    }
   };
 
   const handleBackToPredict = () => {
+    // Clear current prediction to prevent reuse
+    localStorage.removeItem('currentPrediction');
     router.push('/predict');
   };
 
@@ -195,7 +224,7 @@ const Results = () => {
 
       {/* Title */}
       <div className="sm:text-4xl md:text-6xl lg:text-7xl mt-32 text-white font-bold text-center relative z-20">
-        <h1>Optic Predict</h1>
+        <h1>OptiPredict</h1>
       </div>
 
       {/* Animated Background Overlay */}
