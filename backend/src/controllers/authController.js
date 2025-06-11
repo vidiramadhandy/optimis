@@ -1,3 +1,4 @@
+// backend/src/controllers/authController.js - KODE LENGKAP DIPERBAIKI
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
@@ -87,37 +88,76 @@ function logout(req, res) {
   res.json({ message: 'Logged out successfully' });
 }
 
-// Check authentication status - TAMBAHKAN FUNGSI INI
+// Check authentication status - PERBAIKAN UTAMA
 async function checkAuth(req, res) {
   try {
-    const token = req.cookies.token || req.headers['x-access-token'];
+    const token = req.headers['x-access-token'] || 
+                  req.cookies.token || 
+                  (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+    
+    console.log('🔍 Auth check request received');
+    console.log('Token exists:', !!token);
     
     if (!token) {
-      return res.status(401).json({ authenticated: false, message: 'Tidak terautentikasi' });
+      console.log('❌ No token found in auth check');
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'Token tidak ditemukan' 
+      });
     }
 
-    // Verifikasi token
-    const decoded = jwt.verify(token, config.jwtSecret);
-    
-    // Cek apakah user masih ada di database
-    const [users] = await db.query('SELECT id FROM users WHERE id = ?', [decoded.id]);
-    
-    if (users.length === 0) {
-      return res.status(401).json({ authenticated: false, message: 'User tidak ditemukan' });
+    try {
+      const decoded = jwt.verify(token, config.jwtSecret);
+      console.log('✅ Token decoded successfully:', { userId: decoded.id });
+      
+      // Cek apakah user masih ada di database
+      const [users] = await db.query('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
+      
+      if (users.length === 0) {
+        console.log('❌ User not found in database:', decoded.id);
+        return res.status(401).json({ 
+          authenticated: false, 
+          message: 'User tidak ditemukan di database' 
+        });
+      }
+      
+      const user = users[0];
+      console.log('✅ User authenticated:', { id: user.id, name: user.name });
+      
+      // PERBAIKAN: Return format yang konsisten
+      res.json({ 
+        authenticated: true, 
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email
+        },
+        message: 'User terautentikasi'
+      });
+      
+    } catch (jwtError) {
+      console.log('❌ JWT verification failed:', jwtError.message);
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'Token tidak valid atau expired' 
+      });
     }
     
-    // Jika token valid, kirim status autentikasi
-    res.json({ authenticated: true, userId: decoded.id });
   } catch (error) {
-    console.error(error);
-    res.status(401).json({ authenticated: false, message: 'Token tidak valid' });
+    console.error('❌ Error in auth check:', error);
+    res.status(500).json({ 
+      authenticated: false, 
+      message: 'Error internal server' 
+    });
   }
 }
 
 // Get user data from token
 async function getUserData(req, res) {
   try {
-    const token = req.cookies.token || req.headers['x-access-token'];
+    const token = req.headers['x-access-token'] || 
+                  req.cookies.token || 
+                  (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
     
     if (!token) {
       return res.status(401).json({ message: 'Token is required for authentication' });

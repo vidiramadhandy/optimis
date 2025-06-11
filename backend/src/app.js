@@ -1,4 +1,3 @@
-// backend/src/app.js - KODE LENGKAP
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -9,8 +8,35 @@ const userRoutes = require('./routes/userRoutes');
 const { verifyToken } = require('./middleware/auth');
 const config = require('./config');
 const db = require('./db');
+const multer = require('multer');
+const FormData = require('form-data');
+const fs = require('fs');
 
 const app = express();
+
+app.use((req, res, next) => {
+  const contentLength = req.get('content-length');
+  const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
+  if (req.path === '/api/predict-file') {
+    if (fileSizeMB > 100) {
+      req.setTimeout(14400000);
+      res.setTimeout(14400000);
+      console.log(`⏰ Setting 4-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
+    } else if (fileSizeMB > 50) {
+      req.setTimeout(7200000);
+      res.setTimeout(7200000);
+      console.log(`⏰ Setting 2-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
+    } else {
+      req.setTimeout(3600000);
+      res.setTimeout(3600000);
+      console.log(`⏰ Setting 1-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
+    }
+  } else {
+    req.setTimeout(600000);
+    res.setTimeout(600000);
+  }
+  next();
+});
 
 app.use(cors({
   origin: 'http://localhost:3000',
@@ -19,12 +45,28 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token']
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '500mb' }));
+app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(cookieParser());
 
 const FLASK_ML_URL = 'http://localhost:5001';
 
-// Routes autentikasi
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: {
+    fileSize: 500 * 1024 * 1024,
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.csv', '.xlsx', '.xls'];
+    const fileExt = file.originalname.toLowerCase().slice(-4);
+    if (allowedTypes.some(type => file.originalname.toLowerCase().endsWith(type))) {
+      cb(null, true);
+    } else {
+      cb(new Error('Format file tidak didukung. Hanya .csv, .xlsx, .xls yang diizinkan.'));
+    }
+  }
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
@@ -34,36 +76,17 @@ app.get('/api/auth/check', async (req, res) => {
     const token = req.headers['x-access-token'] || 
                   req.cookies.token || 
                   (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
-    
-    console.log('🔍 Auth check request received');
-    console.log('Token exists:', !!token);
-    
     if (!token) {
-      console.log('❌ No token found in auth check');
-      return res.status(401).json({ 
-        authenticated: false, 
-        message: 'Token tidak ditemukan' 
-      });
+      return res.status(401).json({ authenticated: false, message: 'Token tidak ditemukan' });
     }
-
     try {
       const decoded = jwt.verify(token, config.jwtSecret);
-      console.log('✅ Token decoded successfully:', { userId: decoded.id });
-      
       const [users] = await db.query('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
-      
       if (users.length === 0) {
-        console.log('❌ User not found in database:', decoded.id);
-        return res.status(401).json({ 
-          authenticated: false, 
-          message: 'User tidak ditemukan di database' 
-        });
+        return res.status(401).json({ authenticated: false, message: 'User tidak ditemukan di database' });
       }
-      
       const user = users[0];
-      console.log('✅ User authenticated:', { id: user.id, name: user.name });
-      
-      res.json({ 
+      res.json({
         authenticated: true, 
         user: {
           id: user.id,
@@ -72,266 +95,162 @@ app.get('/api/auth/check', async (req, res) => {
         },
         message: 'User terautentikasi'
       });
-      
     } catch (jwtError) {
-      console.log('❌ JWT verification failed:', jwtError.message);
-      return res.status(401).json({ 
-        authenticated: false, 
-        message: 'Token tidak valid atau expired' 
-      });
+      return res.status(401).json({ authenticated: false, message: 'Token tidak valid atau expired' });
     }
-    
   } catch (error) {
-    console.error('❌ Error in auth check:', error);
-    res.status(500).json({ 
-      authenticated: false, 
-      message: 'Error internal server' 
-    });
+    res.status(500).json({ authenticated: false, message: 'Error internal server' });
   }
 });
 
-// PERBAIKAN: Endpoint prediksi dengan timeout dinamis untuk SNR tinggi
+// ENDPOINT MANUAL PREDICT (TAMBAHAN)
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
-    console.log('🔐 Authenticated request from user ID:', req.userId);
-    
-    const { inputs, snr, inputType } = req.body;
-    
-    // Validasi input dari frontend React
-    if (!inputs || !Array.isArray(inputs) || inputs.length !== 30 || !snr) {
-      return res.status(400).json({
-        success: false,
-        message: 'Input tidak valid - diperlukan 30 parameter dan SNR'
-      });
+    const userId = req.userId;
+    const data = req.body;
+    if (!data.userId) {
+      data.userId = userId;
     }
-    
-    // Konversi input kosong menjadi 0 (sesuai dengan frontend)
-    const processedInputs = inputs.map(input => {
-      if (input === '' || input === null || input === undefined) {
-        return 0;
+    const flaskResponse = await axios.post(
+      `${FLASK_ML_URL}/predict`,
+      data,
+      {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 60000,
+        validateStatus: status => status < 600
       }
-      return parseFloat(input);
-    });
-    
-    const snrValue = parseFloat(snr);
-    const isHighSNR = snrValue > 10;
-    
-    const requestData = {
-      inputs: processedInputs,
-      snr: snrValue,
-      userId: req.userId,
-      inputType: inputType || 'Manual'
-    };
-    
-    console.log('📤 Sending to Flask ML service:', {
-      userId: requestData.userId,
-      inputsLength: requestData.inputs?.length,
-      snr: requestData.snr,
-      isHighSNR: isHighSNR
-    });
-    
-    // PERBAIKAN: Timeout dinamis berdasarkan nilai SNR
-    let timeoutDuration;
-    if (isHighSNR) {
-      timeoutDuration = 180000; // 3 menit untuk SNR tinggi
-      console.log('⚠️ High SNR detected, using extended timeout (3 minutes)');
+    );
+    if (flaskResponse.status === 200) {
+      res.json(flaskResponse.data);
     } else {
-      timeoutDuration = 60000; // 1 menit untuk SNR normal
-      console.log('✅ Normal SNR, using standard timeout (1 minute)');
-    }
-    
-    const response = await axios.post(`${FLASK_ML_URL}/predict`, requestData, {
-      timeout: timeoutDuration,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    console.log('📥 Response from Flask ML service:', response.data.success);
-    
-    // Format response untuk frontend React
-    if (response.data.success) {
-      res.json({
-        success: true,
-        data: {
-          id: response.data.data.id,
-          prediction: response.data.data.prediction,
-          confidence: response.data.data.confidence,
-          quality_assessment: response.data.data.quality_assessment,
-          timestamp: response.data.data.timestamp,
-          user_id: response.data.data.user_id,
-          manual_input_id: response.data.data.manual_input_id,
-          snr_info: response.data.data.snr_info,
-          model_info: response.data.data.model_info,
-          user_info: response.data.data.user_info,
-          processing_time: response.data.data.processing_time,
-          database_status: response.data.data.database_status,
-          high_snr_optimization: response.data.data.high_snr_optimization || false
-        },
-        message: response.data.message
-      });
-    } else {
-      res.status(500).json({
+      res.status(flaskResponse.status).json({
         success: false,
-        message: response.data.message || 'Prediksi gagal'
+        message: flaskResponse.data?.message || 'Prediction failed'
       });
     }
-    
   } catch (error) {
-    console.error('❌ Error dalam routing prediksi:', error.message);
-    
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else if (error.code === 'ECONNREFUSED') {
-      res.status(503).json({
-        success: false,
-        message: 'ML service tidak tersedia. Pastikan Flask berjalan di port 5001.'
-      });
-    } else if (error.code === 'ECONNRESET' || error.message.includes('timeout')) {
-      const snrValue = parseFloat(req.body.snr);
-      const isHighSNR = snrValue > 10;
-      
-      res.status(408).json({
-        success: false,
-        message: isHighSNR 
-          ? 'Request timeout - SNR tinggi membutuhkan waktu lebih lama. Silakan coba lagi dalam beberapa saat.'
-          : 'Request timeout - coba lagi dalam beberapa saat'
-      });
+    console.error('❌ Error /api/predict:', error.message);
+    if (error.code === 'ECONNREFUSED') {
+      res.status(503).json({ success: false, message: 'Flask ML service tidak tersedia' });
+    } else if (error.code === 'ETIMEDOUT') {
+      res.status(408).json({ success: false, message: 'Request timeout ke Flask ML service' });
     } else {
-      res.status(500).json({
-        success: false,
-        message: 'Gagal menghubungi ML service'
-      });
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 });
 
-// Endpoint untuk mengambil detail prediksi berdasarkan ID
-app.get('/api/prediction/:id', verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('🔍 Fetching prediction detail for ID:', id, 'User:', req.userId);
-    
-    const response = await axios.get(`${FLASK_ML_URL}/prediction/${id}`, {
-      params: { userId: req.userId },
-      timeout: 10000
-    });
-    
-    res.json(response.data);
-    
-  } catch (error) {
-    console.error('Error fetching prediction detail:', error.message);
-    
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else if (error.code === 'ECONNREFUSED') {
-      res.status(503).json({
-        success: false,
-        message: 'Flask ML service tidak tersedia'
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Gagal mengambil detail prediksi'
-      });
-    }
-  }
-});
-
-// Endpoint untuk history prediksi user
+// Endpoint history
 app.get('/api/predictions', verifyToken, async (req, res) => {
   try {
-    const { limit = 10 } = req.query;
-    
-    const response = await axios.get(`${FLASK_ML_URL}/predictions/${req.userId}`, {
-      params: { limit },
-      timeout: 10000
-    });
-    
-    res.json(response.data);
-    
+    const userId = req.userId;
+    const limit = req.query.limit || 50;
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+    const flaskResponse = await axios.get(
+      `${FLASK_ML_URL}/predictions/${userId}?limit=${limit}`,
+      {
+        timeout: 30000,
+        validateStatus: function (status) {
+          return status < 600;
+        }
+      }
+    );
+    if (flaskResponse.status === 200) {
+      res.json(flaskResponse.data);
+    } else {
+      res.status(flaskResponse.status).json({
+        success: false,
+        message: 'Failed to retrieve history from ML service'
+      });
+    }
   } catch (error) {
-    console.error('Error mengambil history:', error.message);
-    
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else if (error.code === 'ECONNREFUSED') {
+    if (error.code === 'ECONNREFUSED') {
       res.status(503).json({
         success: false,
-        message: 'Flask ML service tidak tersedia'
+        message: 'Flask ML service tidak tersedia. Pastikan Flask berjalan di port 5001.'
+      });
+    } else if (error.code === 'ETIMEDOUT') {
+      res.status(408).json({
+        success: false,
+        message: 'Request timeout saat mengambil history.'
       });
     } else {
       res.status(500).json({
         success: false,
-        message: 'Gagal mengambil data history prediksi'
+        message: 'Gagal mengambil history predictions',
+        error: error.message
       });
     }
   }
 });
 
-// Endpoint untuk menghapus prediksi berdasarkan ID
-app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    console.log('🗑️ Deleting prediction ID:', id, 'User:', req.userId);
-    
-    const response = await axios.delete(`${FLASK_ML_URL}/prediction/${id}`, {
-      params: { userId: req.userId },
-      timeout: 10000
-    });
-    
-    res.json(response.data);
-    
-  } catch (error) {
-    console.error('Error deleting prediction:', error.message);
-    
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else if (error.code === 'ECONNREFUSED') {
-      res.status(503).json({
-        success: false,
-        message: 'Flask ML service tidak tersedia'
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        message: 'Gagal menghapus prediksi'
-      });
-    }
-  }
-});
-
-// Endpoint untuk menghapus semua prediksi user
 app.delete('/api/predictions/all', verifyToken, async (req, res) => {
   try {
-    console.log('🗑️ Deleting all predictions for user:', req.userId);
-    
-    const response = await axios.delete(`${FLASK_ML_URL}/predictions/all/${req.userId}`, {
-      timeout: 10000
-    });
-    
-    res.json(response.data);
-    
-  } catch (error) {
-    console.error('Error deleting all predictions:', error.message);
-    
-    if (error.response) {
-      res.status(error.response.status).json(error.response.data);
-    } else if (error.code === 'ECONNREFUSED') {
-      res.status(503).json({
-        success: false,
-        message: 'Flask ML service tidak tersedia'
-      });
+    const userId = req.userId;
+    if (!userId || isNaN(userId)) {
+      return res.status(400).json({ success: false, message: 'Invalid user ID' });
+    }
+    const flaskResponse = await axios.delete(
+      `${FLASK_ML_URL}/predictions/all/${userId}`,
+      {
+        timeout: 30000,
+        validateStatus: function (status) {
+          return status < 600;
+        }
+      }
+    );
+    if (flaskResponse.status === 200) {
+      res.json(flaskResponse.data);
     } else {
-      res.status(500).json({
+      res.status(flaskResponse.status).json({
         success: false,
-        message: 'Gagal menghapus semua prediksi'
+        message: 'Failed to delete predictions'
       });
     }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Gagal menghapus predictions',
+      error: error.message
+    });
   }
 });
 
-// Health check ML service
+app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const predictionId = req.params.id;
+    if (!predictionId || isNaN(predictionId)) {
+      return res.status(400).json({ success: false, message: 'Invalid prediction ID' });
+    }
+    const flaskResponse = await axios.delete(
+      `${FLASK_ML_URL}/prediction/${predictionId}?userId=${userId}`,
+      {
+        timeout: 30000,
+        validateStatus: function (status) {
+          return status < 600;
+        }
+      }
+    );
+    if (flaskResponse.status === 200) {
+      res.json(flaskResponse.data);
+    } else {
+      res.status(flaskResponse.status).json({
+        success: false,
+        message: 'Failed to delete prediction'
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Gagal menghapus prediction',
+      error: error.message
+    });
+  }
+});
+
 app.get('/api/ml-health', async (req, res) => {
   try {
     const response = await axios.get(`${FLASK_ML_URL}/health`, { timeout: 5000 });
@@ -349,48 +268,197 @@ app.get('/api/ml-health', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'OptiPredict API Server',
-    version: '1.0.0',
-    services: {
-      auth: 'Express handles authentication',
-      ml: 'Flask handles ML predictions with SNR optimization'
-    },
-    endpoints: {
-      auth: '/api/auth',
-      authCheck: '/api/auth/check',
-      predict: '/api/predict (optimized for high SNR)',
-      predictions: '/api/predictions',
-      predictionDetail: '/api/prediction/:id',
-      deletePrediction: '/api/prediction/:id (DELETE)',
-      deleteAllPredictions: '/api/predictions/all (DELETE)',
-      mlHealth: '/api/ml-health'
+function sanitizeJsonData(obj) {
+  if (obj === null || obj === undefined) {
+    return obj;
+  }
+  if (typeof obj === 'number') {
+    if (isNaN(obj) || !isFinite(obj)) {
+      return null;
     }
-  });
-});
+    return obj;
+  }
+  if (typeof obj === 'string') {
+    if (obj === 'NaN' || obj === 'Infinity' || obj === '-Infinity') {
+      return null;
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeJsonData(item));
+  }
+  if (typeof obj === 'object') {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+      sanitized[key] = sanitizeJsonData(value);
+    }
+    return sanitized;
+  }
+  return obj;
+}
 
-app.use((err, req, res, next) => {
-  console.error('❌ Unhandled error:', err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Terjadi kesalahan internal server'
-  });
+app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, res) => {
+  let tempFilePath = null;
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'File tidak ditemukan dalam request' });
+    }
+    tempFilePath = req.file.path;
+    const fileSizeMB = req.file.size / (1024 * 1024);
+    if (req.file.size === 0) {
+      return res.status(400).json({ success: false, message: 'File kosong atau tidak valid' });
+    }
+    const formData = new FormData();
+    formData.append('file', fs.createReadStream(req.file.path), {
+      filename: req.file.originalname,
+      contentType: req.file.mimetype
+    });
+    formData.append('userId', req.userId.toString());
+    let timeoutDuration;
+    if (fileSizeMB > 100) {
+      timeoutDuration = 14400000;
+    } else if (fileSizeMB > 50) {
+      timeoutDuration = 7200000;
+    } else if (fileSizeMB > 20) {
+      timeoutDuration = 3600000;
+    } else {
+      timeoutDuration = 1800000;
+    }
+    const flaskResponse = await axios.post(
+      `${FLASK_ML_URL}/predict-file`,
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+          'Accept': 'application/json'
+        },
+        maxContentLength: 1000 * 1024 * 1024,
+        maxBodyLength: 1000 * 1024 * 1024,
+        timeout: timeoutDuration,
+        responseType: 'text',
+        validateStatus: function (status) {
+          return status < 600;
+        }
+      }
+    );
+    if (flaskResponse.status >= 400) {
+      return res.status(flaskResponse.status).json({
+        success: false,
+        message: 'Error dari Flask ML service',
+        status: flaskResponse.status
+      });
+    }
+    let responseData;
+    try {
+      let cleanedData = flaskResponse.data;
+      cleanedData = cleanedData.replace(/^\uFEFF/, '').trim();
+      cleanedData = cleanedData.replace(/:\s*NaN\s*([,}])/g, ': null$1');
+      cleanedData = cleanedData.replace(/:\s*Infinity\s*([,}])/g, ': null$1');
+      cleanedData = cleanedData.replace(/:\s*-Infinity\s*([,}])/g, ': null$1');
+      responseData = JSON.parse(cleanedData);
+      responseData = sanitizeJsonData(responseData);
+    } catch (parseError) {
+      return res.status(500).json({
+        success: false,
+        message: 'Response dari Flask ML service mengandung data tidak valid (NaN values)',
+        error: parseError.message
+      });
+    }
+    const requiredFields = ['success', 'message', 'total_rows', 'processed_rows', 'results'];
+    const missingFields = requiredFields.filter(field => responseData[field] === undefined);
+    if (missingFields.length > 0) {
+      return res.status(500).json({
+        success: false,
+        message: `Response dari Flask ML service tidak lengkap. Missing fields: ${missingFields.join(', ')}`
+      });
+    }
+    let optimizedResults = responseData.results;
+    let isLimited = false;
+    if (responseData.results && responseData.results.length > 10000) {
+      optimizedResults = responseData.results.slice(0, 10000);
+      isLimited = true;
+      responseData.message = `${responseData.message} (Menampilkan 10,000 baris pertama dari ${responseData.processed_rows} total baris)`;
+    }
+    const finalResponse = {
+      success: Boolean(responseData.success),
+      message: String(responseData.message || ''),
+      total_rows: Number(responseData.total_rows || 0),
+      processed_rows: Number(responseData.processed_rows || 0),
+      valid_rows: Number(responseData.valid_rows || 0),
+      displayed_rows: optimizedResults ? optimizedResults.length : 0,
+      is_limited: isLimited,
+      user_id: req.userId,
+      processing_time: `${Math.round(timeoutDuration/60000)} minutes timeout`,
+      results: Array.isArray(optimizedResults) ? optimizedResults : []
+    };
+    try {
+      await db.query(`
+        INSERT INTO excel_inputs (
+          user_id, original_filename, file_size_bytes, total_rows, 
+          valid_rows, processed_rows, status, created_at, processed_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `, [
+        req.userId,
+        req.file.originalname,
+        req.file.size,
+        finalResponse.total_rows,
+        finalResponse.valid_rows,
+        finalResponse.processed_rows,
+        'success'
+      ]);
+    } catch {}
+    res.json(finalResponse);
+  } catch (error) {
+    if (error.code === 'ECONNREFUSED') {
+      res.status(503).json({
+        success: false,
+        message: 'Flask ML service tidak tersedia. Pastikan Flask berjalan di port 5001.'
+      });
+    } else if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
+      const fileSizeMB = req.file ? req.file.size / (1024 * 1024) : 0;
+      res.status(408).json({
+        success: false,
+        message: `Request timeout untuk file ${fileSizeMB.toFixed(2)}MB. File sangat besar membutuhkan waktu pemrosesan yang lama. Pertimbangkan untuk membagi file menjadi bagian yang lebih kecil (maksimal 50MB per file).`
+      });
+    } else if (error.response) {
+      res.status(error.response.status).json({
+        success: false,
+        message: error.response.data?.message || 'Error dari Flask ML service'
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Gagal melakukan prediksi batch untuk file besar',
+        error: error.message
+      });
+    }
+  } finally {
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch {}
+    }
+  }
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+
+const server = app.listen(PORT, () => {
   console.log(`🚀 Express server berjalan di http://localhost:${PORT}`);
+  console.log(`⏰ Extended timeout untuk file besar: 4 jam maksimal`);
+  console.log(`📊 Support untuk file hingga 500MB`);
   console.log(`🔐 Menangani autentikasi dan routing ke ML service`);
-  console.log(`⚡ Optimized untuk SNR tinggi dengan timeout dinamis`);
-  console.log(`📋 Endpoints tersedia:`);
-  console.log(`   - GET  /api/auth/check`);
-  console.log(`   - POST /api/predict (timeout: 1-3 menit berdasarkan SNR)`);
-  console.log(`   - GET  /api/prediction/:id`);
-  console.log(`   - DELETE /api/prediction/:id`);
-  console.log(`   - GET  /api/predictions`);
-  console.log(`   - DELETE /api/predictions/all`);
-  console.log(`   - GET  /api/ml-health`);
+  console.log(`📋 Available endpoints:`);
+  console.log(`   - POST /api/predict (manual predict)`);
+  console.log(`   - POST /api/predict-file (batch prediction)`);
+  console.log(`   - GET  /api/predictions (history)`);
+  console.log(`   - DELETE /api/predictions/all (delete all)`);
+  console.log(`   - DELETE /api/prediction/:id (delete one)`);
+  console.log(`   - GET  /api/ml-health (health check)`);
 });
+
+server.timeout = 14400000;
+server.keepAliveTimeout = 14400000;
+server.headersTimeout = 14400000;
 
 module.exports = app;
