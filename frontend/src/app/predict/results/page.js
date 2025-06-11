@@ -537,7 +537,7 @@ const Results = () => {
         <div className="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
           <h2 className="text-2xl font-bold mb-4 text-center">🎯 Analysis Summary</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Prediction Result */}
             <div className="text-center p-4 bg-white rounded-lg shadow">
               <div className="text-sm font-medium text-gray-600 mb-2">Prediction Result</div>
@@ -559,13 +559,13 @@ const Results = () => {
               )}
             </div>
 
-            {/* Quality Assessment */}
+            {/* Quality Assessment
             <div className="text-center p-4 bg-white rounded-lg shadow">
               <div className="text-sm font-medium text-gray-600 mb-2">Quality Assessment</div>
               <div className={`text-lg font-bold p-2 rounded-lg ${getQualityColor(qualityAssessment)}`}>
                 {qualityAssessment ? qualityAssessment.toUpperCase() : 'Evaluating...'}
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
 

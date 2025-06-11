@@ -290,7 +290,7 @@ body {
   inset: auto 35% 0;
   aspect-ratio: 1;
   border-radius: 50%;
-  background: #000b38;
+  background: #01166c;
   animation: l6-0 .5s cubic-bezier(0,800,1,800) infinite;
 }
 .loader:after {

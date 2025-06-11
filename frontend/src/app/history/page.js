@@ -416,15 +416,15 @@ const History = () => {
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800">
-                        Prediction #{predictionNumber}
+                        Prediction
                       </h3>
                       <p className="text-sm text-gray-500">
                         {new Date(prediction.created_at).toLocaleString('id-ID')}
                       </p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getQualityColor(prediction.quality_assessment)}`}>
+                    {/* <span className={`px-3 py-1 rounded-full text-sm font-medium ${getQualityColor(prediction.quality_assessment)}`}>
                       {prediction.quality_assessment?.toUpperCase() || 'N/A'}
-                    </span>
+                    </span> */}
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
