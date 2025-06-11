@@ -14,7 +14,7 @@ const AltPage = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-  
+
   // State untuk file processing
   const [isProcessing, setIsProcessing] = useState(false);
   const [processProgress, setProcessProgress] = useState(0);
@@ -22,14 +22,17 @@ const AltPage = () => {
   const [fileSize, setFileSize] = useState(0);
   const [processingStage, setProcessingStage] = useState('');
   const [isLargeDataset, setIsLargeDataset] = useState(false);
-  
+
   // State untuk loading spinner dan progress
   const [uploadProgress, setUploadProgress] = useState(0);
   const [predictionProgress, setPredictionProgress] = useState(0);
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [startTime, setStartTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
-  
+
+  // State untuk reset area upload
+  const [uploadAreaKey, setUploadAreaKey] = useState(Date.now());
+
   const router = useRouter();
 
   // Timer untuk elapsed time
@@ -61,7 +64,7 @@ const AltPage = () => {
         });
 
         const result = await response.json();
-        
+
         if (result.authenticated) {
           setIsAuthenticated(true);
         } else {
@@ -79,14 +82,14 @@ const AltPage = () => {
     checkAuth();
   }, [router]);
 
-  // PERBAIKAN: Check Flask service sebelum submit
+  // Check Flask service sebelum submit
   const checkFlaskService = async () => {
     try {
       const response = await fetch('http://localhost:5001/health', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
-      
+
       if (response.ok) {
         const result = await response.json();
         console.log('✅ Flask service is available:', result);
@@ -105,9 +108,9 @@ const AltPage = () => {
   const processFile = useCallback(async (file) => {
     const fileExtension = file.name.split('.').pop().toLowerCase();
     const fileSizeMB = file.size / (1024 * 1024);
-    
+
     setFileSize(file.size);
-    
+
     if (file.size > 1000 * 1024 * 1024) { // 1GB limit
       setErrorMsg(`File too large (${fileSizeMB.toFixed(1)}MB). Maximum 1GB.`);
       return;
@@ -124,7 +127,7 @@ const AltPage = () => {
 
     try {
       let rowCount = 0;
-      
+
       if (fileExtension === 'csv') {
         rowCount = await processCSV(file);
       } else if (['xlsx', 'xls'].includes(fileExtension)) {
@@ -132,16 +135,16 @@ const AltPage = () => {
       } else {
         throw new Error('Unsupported file format. Use .csv, .xlsx, or .xls');
       }
-      
+
       setTotalRows(rowCount);
-      
+
       // Estimasi waktu berdasarkan ukuran file
       const estimatedMinutes = Math.ceil(rowCount / 1000);
       setEstimatedTime(estimatedMinutes);
-      
+
       setProcessingStage(`File processed successfully! ${rowCount.toLocaleString()} rows detected. Estimated processing time: ${estimatedMinutes} minutes.`);
       setProcessProgress(100);
-      
+
     } catch (error) {
       setErrorMsg(error.message || 'Failed to process file');
     } finally {
@@ -176,13 +179,13 @@ const AltPage = () => {
         try {
           const buffer = evt.target.result;
           const workbook = new ExcelJS.Workbook();
-          
+
           await workbook.xlsx.load(buffer, {
             sharedStrings: 'cache',
             hyperlinks: 'ignore',
             styles: 'ignore'
           });
-          
+
           const worksheet = workbook.worksheets[0];
           const rowCount = worksheet.rowCount - 1;
           resolve(rowCount);
@@ -214,7 +217,7 @@ const AltPage = () => {
   const handleDrop = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       setSelectedFile(file);
@@ -223,7 +226,7 @@ const AltPage = () => {
     }
   }, [processFile]);
 
-  // Reset state
+  // Reset state & area upload
   const handleUploadAgain = useCallback(() => {
     setSelectedFile(null);
     setUploadedFileName("");
@@ -237,22 +240,19 @@ const AltPage = () => {
     setEstimatedTime(0);
     setElapsedTime(0);
     setStartTime(null);
-    if (document.getElementById('fileInput')) {
-      document.getElementById('fileInput').value = "";
-    }
+    setUploadAreaKey(Date.now()); // Ubah key agar area upload di-render ulang
   }, []);
 
-  // PERBAIKAN: Submit yang kompatibel dengan app.py Anda
+  // Submit prediksi
   const handleConfirmPredict = async () => {
     if (!selectedFile) {
       setErrorMsg('Please upload a file first.');
       return;
     }
 
-    // Check Flask service sebelum submit
     setProcessingStage('Checking Flask ML service...');
     const serviceAvailable = await checkFlaskService();
-    
+
     if (!serviceAvailable) {
       setErrorMsg('Flask ML service is not available. Please ensure Flask is running on port 5001. Check the terminal for Flask startup messages.');
       return;
@@ -266,19 +266,11 @@ const AltPage = () => {
     setPredictionProgress(0);
 
     try {
-      // PERBAIKAN: Sesuai dengan app.py yang menggunakan Express sebagai proxy
       const formData = new FormData();
       formData.append('file', selectedFile);
       const token = localStorage.getItem('auth_token');
 
-      // Extended timeout untuk file besar
-      const timeoutDuration = Math.max(3600000, totalRows * 100);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeoutDuration);
-
-      console.log(`🚀 Starting prediction for ${totalRows.toLocaleString()} rows...`);
-
-      // Simulate upload progress
+      // Simulasi upload progress
       const uploadInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 100) {
@@ -289,22 +281,19 @@ const AltPage = () => {
         });
       }, 200);
 
-      // PERBAIKAN: Gunakan Express backend yang akan forward ke Flask
       const response = await fetch('http://localhost:5000/api/predict-file', {
         method: 'POST',
         body: formData,
-        headers: { 
+        headers: {
           ...(token && { 'x-access-token': token })
         },
-        credentials: 'include',
-        signal: controller.signal
+        credentials: 'include'
       });
 
       clearInterval(uploadInterval);
       setUploadProgress(100);
-      clearTimeout(timeoutId);
 
-      // Simulate prediction progress
+      // Simulasi prediction progress
       const predictionInterval = setInterval(() => {
         setPredictionProgress(prev => {
           if (prev >= 90) {
@@ -317,24 +306,12 @@ const AltPage = () => {
 
       if (!response.ok) {
         let errorMessage = `HTTP error! status: ${response.status}`;
-        
         try {
           const errorResult = await response.json();
           errorMessage = errorResult.message || errorMessage;
         } catch (parseError) {
           errorMessage = response.statusText || errorMessage;
         }
-
-        if (response.status === 401) {
-          setErrorMsg('Session expired. Please login again.');
-          localStorage.removeItem('auth_token');
-          router.push('/login');
-          return;
-        } else if (response.status === 503) {
-          setErrorMsg('Flask ML service is temporarily unavailable. Please try again in a few moments.');
-          return;
-        }
-        
         throw new Error(errorMessage);
       }
 
@@ -349,14 +326,7 @@ const AltPage = () => {
         setErrorMsg(result.message || 'Prediction failed.');
       }
     } catch (err) {
-      console.error('❌ Error during prediction:', err);
-      if (err.name === 'AbortError') {
-        setErrorMsg(`Request timeout after ${Math.round(elapsedTime/60000)} minutes. For very large datasets (${totalRows.toLocaleString()} rows), consider splitting the file into smaller chunks.`);
-      } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-        setErrorMsg('Cannot connect to backend service. Please ensure both Express (port 5000) and Flask (port 5001) are running.');
-      } else {
-        setErrorMsg(err.message || 'Failed to connect to server.');
-      }
+      setErrorMsg(err.message || 'Failed to upload file.');
     } finally {
       setLoading(false);
       setStartTime(null);
@@ -368,7 +338,7 @@ const AltPage = () => {
     const seconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes % 60}m ${seconds % 60}s`;
     } else if (minutes > 0) {
@@ -405,8 +375,8 @@ const AltPage = () => {
               <span>{uploadProgress}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+              <div
+                className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
@@ -417,8 +387,8 @@ const AltPage = () => {
               <span>{predictionProgress}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-green-500 h-2 rounded-full transition-all duration-300" 
+              <div
+                className="bg-green-500 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${predictionProgress}%` }}
               ></div>
             </div>
@@ -472,11 +442,12 @@ const AltPage = () => {
         <p className="text-gray-600 mb-4">
           Upload file with columns: SNR, P1, P2, ..., P30 (format .xlsx, .xls, or .csv)
         </p>
-        
+
         {/* Info dengan warning untuk file besar */}
         <div className="mb-4 p-4 bg-amber-100 text-amber-800 rounded border border-amber-300">
-          <h4 className="font-bold mb-2">⚠️ Large Dataset Processing:</h4>
+          <h4 className="font-bold mb-2">⚠️ Disclaimer:</h4>
           <ul className="text-sm space-y-1">
+            <li>• Inserting a file with the size of more than 10Mb will consider as a large dataset file</li>
             <li>• Files with 100K+ rows may take a few minutes to process</li>
             <li>• For optimal performance, consider splitting files {'>'}100K rows</li>
             <li>• Keep browser tab open during processing</li>
@@ -488,102 +459,109 @@ const AltPage = () => {
           <LoadingSpinner />
         ) : (
           <>
-            {/* Upload area */}
-            <div
-              className="border-2 border-dashed rounded-xl p-12 text-center transition-colors duration-300 border-gray-300 hover:border-gray-400"
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                id="fileInput"
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileChange}
-                className="hidden"
-                disabled={isProcessing}
-              />
-              
-              <label htmlFor="fileInput" className={`cursor-pointer ${isProcessing ? 'pointer-events-none' : ''}`}>
-                <div className="text-gray-500 mb-4">
-                  <svg className="mx-auto h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 48 48">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" />
-                  </svg>
-                  <p className="text-lg">
-                    {isProcessing ? 'Processing...' : 'Choose File or Drag & Drop'}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-2">
-                    Supports: .csv, .xlsx, .xls files (Max: 1GB)
-                  </p>
-                </div>
-              </label>
-            </div>
+            {/* Area upload dibungkus dengan key */}
+            {!results && (
+              <div key={uploadAreaKey}>
+                {/* Upload area */}
+                <div
+                  className="border-2 border-dashed rounded-xl p-12 text-center transition-colors duration-300 border-gray-300 hover:border-gray-400"
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                >
+                  <input
+                    id="fileInput"
+                    type="file"
+                    accept=".csv,.xlsx,.xls"
+                    onChange={handleFileChange}
+                    className="hidden"
+                    disabled={isProcessing}
+                  />
 
-            {/* File info */}
-            {selectedFile && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-semibold mb-2">📁 File Information:</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div><strong>File:</strong> {uploadedFileName}</div>
-                  <div><strong>Size:</strong> {formatFileSize(fileSize)}</div>
-                  <div><strong>Rows:</strong> {totalRows.toLocaleString()}</div>
-                  <div><strong>Est. Time:</strong> {estimatedTime > 0 ? `~${estimatedTime} minutes` : 'Calculating...'}</div>
+                  <label htmlFor="fileInput" className={`cursor-pointer ${isProcessing ? 'pointer-events-none' : ''}`}>
+                    <div className="text-gray-500 mb-4">
+                      {/* ICON FILE DOKUMEN */}
+                      <svg className="mx-auto h-12 w-12 mb-4" fill="none" viewBox="0 0 48 48" stroke="currentColor">
+                        <rect x="8" y="6" width="34" height="40" rx="4" fill="#e0e7ef" stroke="#64748b" strokeWidth="2"/>
+                        <path d="M15 14h14M15 22h12M15 30h8" stroke="#64748b" strokeWidth="2" strokeLinecap="round"/>
+                        <path d="M32 6v8a2 2 0 002 2h8" stroke="#64748b" strokeWidth="2" fill="none"/>
+                      </svg>
+                      <p className="text-lg">
+                        {isProcessing ? 'Processing...' : 'Choose File or Drag & Drop'}
+                      </p>
+                      <p className="text-sm text-gray-400 mt-2">
+                        Supports: .csv, .xlsx, .xls files (Max: 1GB)
+                      </p>
+                    </div>
+                  </label>
                 </div>
-                {totalRows > 100000 && (
-                  <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">
-                    <strong>⚠️ Large Dataset:</strong> This file has {totalRows.toLocaleString()} rows and may take significant time to process.
+
+                {/* File info */}
+                {selectedFile && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 className="font-semibold mb-2">📁 File Information:</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div><strong>File:</strong> {uploadedFileName}</div>
+                      <div><strong>Size:</strong> {formatFileSize(fileSize)}</div>
+                      <div><strong>Rows:</strong> {totalRows.toLocaleString()}</div>
+                      <div><strong>Est. Time:</strong> {estimatedTime > 0 ? `~${estimatedTime} minutes` : 'Calculating...'}</div>
+                    </div>
+                    {totalRows > 100000 && (
+                      <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">
+                        <strong>⚠️ Large Dataset:</strong> This file has {totalRows.toLocaleString()} rows and may take significant time to process.
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Progress bar untuk file processing */}
+                {isProcessing && (
+                  <div className="mt-6">
+                    <div className="flex justify-between text-sm text-gray-600 mb-2">
+                      <span>Reading File...</span>
+                      <span>{Math.round(processProgress)}%</span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-4">
+                      <div
+                        className="bg-blue-600 h-4 rounded-full transition-all duration-1000"
+                        style={{ width: `${processProgress}%` }}
+                      ></div>
+                    </div>
+                    <div className="mt-2 text-center">
+                      <p className="text-sm text-blue-600 font-medium">{processingStage}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error message */}
+                {errorMsg && (
+                  <div className="mt-4 p-4 bg-red-100 text-red-700 rounded border border-red-300">
+                    <strong>Error:</strong> {errorMsg}
+                  </div>
+                )}
+
+                {/* Action buttons */}
+                <div className="flex justify-center gap-4 mt-6">
+                  {selectedFile && totalRows > 0 && !isProcessing && (
+                    <>
+                      <button
+                        onClick={handleUploadAgain}
+                        className="bg-gray-500 hover:bg-gray-600 cursor-pointer text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300"
+                      >
+                        Upload Different File
+                      </button>
+                      <button
+                        onClick={handleConfirmPredict}
+                        className="btn-gradient text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300"
+                      >
+                        Start Prediction ({totalRows.toLocaleString()} rows)
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             )}
-
-            {/* Progress bar untuk file processing */}
-            {isProcessing && (
-              <div className="mt-6">
-                <div className="flex justify-between text-sm text-gray-600 mb-2">
-                  <span>Reading File...</span>
-                  <span>{Math.round(processProgress)}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-4">
-                  <div 
-                    className="bg-blue-600 h-4 rounded-full transition-all duration-1000" 
-                    style={{ width: `${processProgress}%` }}
-                  ></div>
-                </div>
-                <div className="mt-2 text-center">
-                  <p className="text-sm text-blue-600 font-medium">{processingStage}</p>
-                </div>
-              </div>
-            )}
-
-            {/* Error message */}
-            {errorMsg && (
-              <div className="mt-4 p-4 bg-red-100 text-red-700 rounded border border-red-300">
-                <strong>Error:</strong> {errorMsg}
-              </div>
-            )}
-
-            {/* Action buttons */}
-            <div className="flex justify-center gap-4 mt-6">
-              {selectedFile && totalRows > 0 && !isProcessing && (
-                <>
-                  <button
-                    onClick={handleUploadAgain}
-                    className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300"
-                  >
-                    Upload Different File
-                  </button>
-                  <button
-                    onClick={handleConfirmPredict}
-                    className="btn-gradient text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300"
-                  >
-                    Start Prediction ({totalRows.toLocaleString()} rows)
-                  </button>
-                </>
-              )}
-              
-            </div>
           </>
         )}
 
@@ -593,7 +571,7 @@ const AltPage = () => {
             <h3 className="text-xl font-semibold mb-4">
               ✅ Prediction Complete! ({results.length.toLocaleString()} rows processed)
             </h3>
-            
+
             {/* Summary stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="text-center p-3 bg-green-50 rounded-lg">
@@ -610,7 +588,7 @@ const AltPage = () => {
                 <div className="text-2xl font-bold text-yellow-600">
                   {results.filter(r => r.prediction && r.prediction !== 'Normal').length.toLocaleString()}
                 </div>
-                <div className="text-sm text-gray-600">Issues Detected</div>
+                <div className="text-sm text-gray-600">Faults Detected</div>
               </div>
               <div className="text-center p-3 bg-red-50 rounded-lg">
                 <div className="text-2xl font-bold text-red-600">
@@ -662,16 +640,22 @@ const AltPage = () => {
                 </tbody>
               </table>
             </div>
-            
+
             {results.length > 100 && (
               <div className="mt-4 p-3 bg-blue-100 text-blue-800 rounded text-center">
                 <p className="text-sm">Showing first 100 results of {results.length.toLocaleString()} total predictions.</p>
               </div>
             )}
-            
+
+            <button
+              onClick={handleUploadAgain}
+              className="bg-gray-500 hover:bg-gray-600 cursor-pointer text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300 mt-6"
+            >
+              Upload Different File
+            </button>
             <button
               onClick={() => router.push('/history')}
-              className=" mt-4 bg-blue-800 text-white center rounded-lg py-3 px-3 font-semibold hover:bg-blue-900 cursor-pointer transition-all duration-200">
+              className="ml-4 mt-6 bg-blue-800 text-white center rounded-lg py-3 px-3 font-semibold hover:bg-blue-900 cursor-pointer transition-all duration-200">
               See History
             </button>
           </div>
