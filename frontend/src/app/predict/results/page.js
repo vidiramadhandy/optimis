@@ -1,4 +1,4 @@
-// frontend/src/app/predict/results/page.js - KODE LENGKAP DENGAN PERBAIKAN
+// frontend/src/app/predict/results/page.js - PERBAIKAN ERROR CONST VARIABLE
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -83,6 +83,116 @@ const Results = () => {
     return 'Low';
   };
 
+  // PERBAIKAN: Format data dari database dengan let instead of const
+  const formatDatabaseData = (dbData) => {
+    console.log('📊 Formatting database data:', dbData);
+    
+    // PERBAIKAN: Gunakan let instead of const untuk parameters
+    let parameters = {};
+    
+    if (dbData.parameters) {
+      // Jika sudah ada field parameters
+      parameters = dbData.parameters;
+    } else if (dbData.inputs) {
+      // Parse dari inputs JSON
+      try {
+        let inputsData = [];
+        if (typeof dbData.inputs === 'string') {
+          inputsData = JSON.parse(dbData.inputs);
+        } else if (Array.isArray(dbData.inputs)) {
+          inputsData = dbData.inputs;
+        }
+        
+        for (let i = 0; i < 30; i++) {
+          const paramKey = `P${i + 1}`;
+          parameters[paramKey] = i < inputsData.length ? parseFloat(inputsData[i]) || 0.0 : 0.0;
+        }
+      } catch (e) {
+        console.log('Error parsing inputs from database:', e);
+        // Default semua parameter ke 0
+        for (let i = 0; i < 30; i++) {
+          parameters[`P${i + 1}`] = 0.0;
+        }
+      }
+    } else {
+      // Default semua parameter ke 0 jika tidak ada data
+      for (let i = 0; i < 30; i++) {
+        parameters[`P${i + 1}`] = 0.0;
+      }
+    }
+
+    const formattedData = {
+      id: dbData.id,
+      prediction_number: dbData.prediction_number || dbData.id,
+      prediction: dbData.prediction || 'N/A',
+      confidence: parseFloat(dbData.confidence) || 0.0,
+      snr: parseFloat(dbData.snr) || 0.0,
+      snr_normalized: parseFloat(dbData.snr_normalized) || 0.0,
+      parameters: parameters,
+      quality_assessment: dbData.quality_assessment || 'N/A',
+      input_type: dbData.input_type || 'Manual',
+      model_version: dbData.model_version || '2.0',
+      created_at: dbData.created_at,
+      timestamp: dbData.created_at || new Date().toISOString()
+    };
+
+    console.log('📊 Formatted database data:', {
+      prediction: formattedData.prediction,
+      confidence: formattedData.confidence,
+      parametersCount: Object.keys(formattedData.parameters).length,
+      nonZeroParams: Object.values(formattedData.parameters).filter(v => v !== 0).length
+    });
+
+    return formattedData;
+  };
+
+  // PERBAIKAN: Format data dari localStorage dengan let instead of const
+  const formatLocalStorageData = (localData) => {
+    console.log('📊 Formatting localStorage data:', localData);
+    
+    // PERBAIKAN: Gunakan let instead of const untuk parameters
+    let parameters = {};
+    
+    if (localData.parameters) {
+      parameters = localData.parameters;
+    } else if (localData.inputs) {
+      // Format inputs menjadi parameters P1-P30
+      const inputs = Array.isArray(localData.inputs) ? localData.inputs : [];
+      for (let i = 0; i < 30; i++) {
+        const paramKey = `P${i + 1}`;
+        parameters[paramKey] = i < inputs.length ? parseFloat(inputs[i]) || 0.0 : 0.0;
+      }
+    } else {
+      // Default semua parameter ke 0
+      for (let i = 0; i < 30; i++) {
+        parameters[`P${i + 1}`] = 0.0;
+      }
+    }
+
+    const formattedData = {
+      id: localData.id,
+      prediction_number: localData.prediction_number || localData.id,
+      prediction: localData.prediction || localData.result || 'N/A',
+      confidence: parseFloat(localData.confidence) || 0.0,
+      snr: parseFloat(localData.snr) || 0.0,
+      snr_normalized: parseFloat(localData.snr_normalized) || 0.0,
+      parameters: parameters,
+      quality_assessment: localData.quality_assessment || localData.qualityAssessment || 'N/A',
+      input_type: localData.input_type || localData.inputType || 'Manual',
+      model_version: localData.model_version || '2.0',
+      timestamp: localData.timestamp || localData.analysisTime || new Date().toISOString()
+    };
+
+    console.log('📊 Formatted localStorage data:', {
+      prediction: formattedData.prediction,
+      confidence: formattedData.confidence,
+      parametersCount: Object.keys(formattedData.parameters).length,
+      nonZeroParams: Object.values(formattedData.parameters).filter(v => v !== 0).length
+    });
+
+    return formattedData;
+  };
+
   // Pastikan komponen sudah mounted (client-side)
   useEffect(() => {
     setMounted(true);
@@ -150,54 +260,86 @@ const Results = () => {
     }
   }, [authStatus, router]);
 
+  // PERBAIKAN: Load prediction data dengan prioritas database
   const loadPredictionResults = async (token) => {
     try {
+      console.log('🔍 Loading prediction data...');
+      setError(null);
+
       // Ambil data dari localStorage
       const currentPrediction = localStorage.getItem('currentPrediction');
       
       if (currentPrediction) {
-        const predictionData = JSON.parse(currentPrediction);
-        console.log('📊 Loading prediction data:', predictionData);
+        const predictionInfo = JSON.parse(currentPrediction);
+        console.log('📊 Found prediction info in localStorage:', predictionInfo);
         
-        // Set data dari localStorage terlebih dahulu
-        setInputs(predictionData.inputs || Array(30).fill(''));
-        setSnr(predictionData.snr || '');
-        setInputType(predictionData.inputType || 'Manual');
-        setAnalysisTime(predictionData.analysisTime || new Date().toLocaleString('id-ID'));
-        setPredictionResult(predictionData.result || '');
-        
-        // PERBAIKAN: Konversi confidence dari localStorage dengan logging detail
-        const rawConfidence = predictionData.confidence;
-        console.log('🔍 Raw confidence from localStorage:', rawConfidence);
-        const convertedConfidence = convertConfidenceToPercentage(rawConfidence);
-        console.log('✅ Final converted confidence:', convertedConfidence);
-        setConfidence(convertedConfidence);
-        
-        setQualityAssessment(predictionData.qualityAssessment || '');
-        setUserInfo(predictionData.userInfo || user);
-        
-        // Jika ada ID dan fromHistory, ambil data dari database
-        if (predictionData.id && predictionData.fromHistory) {
-          await fetchDatabaseData(predictionData.id, token);
+        // PERBAIKAN: Jika ada ID, prioritaskan data dari database
+        if (predictionInfo.id) {
+          console.log('🔍 Fetching data from database for ID:', predictionInfo.id);
+          const databaseData = await fetchFromDatabase(predictionInfo.id, token);
+          
+          if (databaseData) {
+            console.log('✅ Using database data');
+            const formattedData = formatDatabaseData(databaseData);
+            
+            // Set data dari database
+            setInputs(Object.values(formattedData.parameters));
+            setSnr(formattedData.snr.toString());
+            setPredictionResult(formattedData.prediction);
+            setConfidence(convertConfidenceToPercentage(formattedData.confidence));
+            setQualityAssessment(formattedData.quality_assessment);
+            setInputType(formattedData.input_type);
+            setAnalysisTime(new Date(formattedData.timestamp).toLocaleString('id-ID'));
+            setDatabaseData(formattedData);
+            setUserInfo(user);
+          } else {
+            console.log('⚠️ Database fetch failed, using localStorage data');
+            const formattedData = formatLocalStorageData(predictionInfo);
+            
+            // Set data dari localStorage
+            setInputs(Object.values(formattedData.parameters));
+            setSnr(formattedData.snr.toString());
+            setPredictionResult(formattedData.prediction);
+            setConfidence(convertConfidenceToPercentage(formattedData.confidence));
+            setQualityAssessment(formattedData.quality_assessment);
+            setInputType(formattedData.input_type);
+            setAnalysisTime(new Date(formattedData.timestamp).toLocaleString('id-ID'));
+            setUserInfo(user);
+          }
         } else {
-          setIsLoading(false);
+          // Jika tidak ada ID, gunakan data dari localStorage (prediksi baru)
+          console.log('📊 Using localStorage data for new prediction');
+          const formattedData = formatLocalStorageData(predictionInfo);
+          
+          // Set data dari localStorage
+          setInputs(Object.values(formattedData.parameters));
+          setSnr(formattedData.snr.toString());
+          setPredictionResult(formattedData.prediction);
+          setConfidence(convertConfidenceToPercentage(formattedData.confidence));
+          setQualityAssessment(formattedData.quality_assessment);
+          setInputType(formattedData.input_type);
+          setAnalysisTime(new Date(formattedData.timestamp).toLocaleString('id-ID'));
+          setUserInfo(user);
         }
       } else {
-        console.log('❌ No prediction data found, redirecting to predict');
-        router.push('/predict');
+        console.log('❌ No prediction data found');
+        setError('Tidak ada data prediksi yang ditemukan');
       }
     } catch (error) {
-      console.error('Error loading prediction results:', error);
-      setError('Gagal memuat hasil prediksi');
+      console.error('❌ Error loading prediction data:', error);
+      setError('Gagal memuat data prediksi');
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchDatabaseData = async (predictionId, token) => {
+  // PERBAIKAN: Fetch data dari database dengan endpoint yang benar
+  const fetchFromDatabase = async (predictionId, token) => {
     try {
-      console.log('🔍 Fetching database data for prediction ID:', predictionId);
+      console.log('🔍 Fetching from database, prediction ID:', predictionId);
       
-      const response = await fetch(`http://localhost:5000/api/prediction/${predictionId}`, {
+      // PERBAIKAN: Gunakan endpoint history untuk mendapatkan data
+      const response = await fetch('http://localhost:5000/api/predictions', {
         method: 'GET',
         headers: {
           'x-access-token': token,
@@ -207,55 +349,35 @@ const Results = () => {
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ Database data loaded:', result);
+        console.log('✅ Database response:', result);
         
-        if (result.success && result.data) {
-          setDatabaseData(result.data);
+        if (result.success && result.data && result.data.length > 0) {
+          // Cari prediksi berdasarkan ID
+          const prediction = result.data.find(p => p.id === predictionId);
           
-          // Update state dengan data dari database
-          const dbData = result.data;
-          
-          // Ambil input parameters dari database
-          const dbInputs = [];
-          for (let i = 1; i <= 30; i++) {
-            dbInputs.push(dbData[`p${i}`] || '0');
+          if (prediction) {
+            console.log('✅ Found prediction in database:', prediction);
+            return prediction;
+          } else {
+            console.log('⚠️ Prediction not found in database');
+            return null;
           }
-          setInputs(dbInputs);
-          setSnr(dbData.snr || '');
-          
-          // Ambil hasil prediksi dari database
-          if (dbData.prediction_result) {
-            const predResult = typeof dbData.prediction_result === 'string' 
-              ? JSON.parse(dbData.prediction_result) 
-              : dbData.prediction_result;
-            setPredictionResult(predResult.prediction || '');
-          }
-          
-          // PERBAIKAN: Konversi confidence dari database dengan logging detail
-          const dbConfidenceScore = dbData.confidence_score || 0;
-          console.log('🔍 Raw confidence from database:', dbConfidenceScore);
-          const convertedDbConfidence = convertConfidenceToPercentage(dbConfidenceScore);
-          console.log('✅ Final converted database confidence:', convertedDbConfidence);
-          setConfidence(convertedDbConfidence);
-          
-          setQualityAssessment(dbData.quality_assessment || '');
-          setInputType(dbData.input_type || 'Manual');
-          
-          if (dbData.created_at) {
-            setAnalysisTime(new Date(dbData.created_at).toLocaleString('id-ID'));
-          }
+        } else {
+          console.log('⚠️ No data in database response');
+          return null;
         }
       } else {
-        console.log('❌ Failed to fetch database data:', response.status);
+        console.log('❌ Database request failed:', response.status);
+        return null;
       }
     } catch (error) {
-      console.error('Error fetching database data:', error);
-    } finally {
-      setIsLoading(false);
+      console.error('❌ Error fetching from database:', error);
+      return null;
     }
   };
 
   const handleBackToPredict = () => {
+    localStorage.removeItem('currentPrediction');
     router.push('/predict');
   };
 
@@ -288,9 +410,9 @@ const Results = () => {
 
   const getQualityColor = (quality) => {
     switch (quality?.toLowerCase()) {
-      case 'excellent': return 'bg-green-100 text-green-800';
-      case 'good': return 'bg-blue-100 text-blue-800';
-      case 'fair': return 'bg-yellow-100 text-yellow-800';
+      case 'excellent': case 'high': return 'bg-green-100 text-green-800';
+      case 'good': case 'medium': return 'bg-blue-100 text-blue-800';
+      case 'fair': case 'low': return 'bg-yellow-100 text-yellow-800';
       case 'poor': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -401,7 +523,7 @@ const Results = () => {
             {databaseData && (
               <>
                 <div>
-                  <span className="font-semibold">Prediction ID:</span> #{databaseData.id}
+                  <span className="font-semibold">Prediction ID:</span> #{databaseData.prediction_number || databaseData.id}
                 </div>
                 <div>
                   <span className="font-semibold">Model Version:</span> {databaseData.model_version}
@@ -428,7 +550,7 @@ const Results = () => {
             <div className="text-center p-4 bg-white rounded-lg shadow">
               <div className="text-sm font-medium text-gray-600 mb-2">Confidence Level</div>
               <div className={`text-4xl font-bold ${getConfidenceColor(confidence)} mb-2`}>
-                {confidence ? `${confidence}%` : 'Calculating...'}
+                {confidence ? `${confidence}%` : '0.0%'}
               </div>
               {confidence && (
                 <div className="text-sm text-gray-600">
@@ -447,7 +569,7 @@ const Results = () => {
           </div>
         </div>
 
-        {/* Input Values Display */}
+        {/* PERBAIKAN: Input Values Display dengan data yang benar */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold mb-4 text-left">📊 Input Parameters</h2>
           
@@ -495,12 +617,12 @@ const Results = () => {
                     </span>
                   </div>
                   <div><strong>Quality Assessment:</strong> {qualityAssessment}</div>
+                  <div><strong>SNR Value:</strong> {parseFloat(snr || 0).toFixed(2)}</div>
+                  <div><strong>Input Type:</strong> {inputType}</div>
                   {databaseData && (
                     <>
-                      <div><strong>Created:</strong> {new Date(databaseData.created_at).toLocaleString('id-ID')}</div>
-                      {databaseData.user_name && (
-                        <div><strong>Analyzed by:</strong> {databaseData.user_name}</div>
-                      )}
+                      <div><strong>Created:</strong> {new Date(databaseData.timestamp).toLocaleString('id-ID')}</div>
+                      <div><strong>Model Version:</strong> {databaseData.model_version}</div>
                     </>
                   )}
                 </div>

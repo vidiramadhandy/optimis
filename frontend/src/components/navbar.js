@@ -60,7 +60,7 @@ const Navbar = () => {
           <div className="w-10 h-10 rounded-full bg-gray-500 animate-pulse" />
         ) : user ? (
           <>
-            <Link href="/profile">
+            <Link href="/home">
               <span className="text-white hover:bg-gray-600 transition-all ease-in-out duration-300">Welcome, {user.name}</span> {/* Menampilkan nama pengguna */}
             </Link>
           </>

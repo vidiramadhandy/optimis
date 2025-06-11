@@ -1,4 +1,3 @@
-// frontend/src/app/history/page.js - KODE LENGKAP DENGAN PERBAIKAN
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,35 +13,29 @@ const History = () => {
   const [mounted, setMounted] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState({});
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
-  const router = useRouter();
 
+  // State untuk modal sukses
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  const [successAlertMessage, setSuccessAlertMessage] = useState('');
+
+  const router = useRouter();
   const { isAuthenticated, isCheckingAuth, user } = useAuth();
 
-  // Pastikan komponen sudah mounted (client-side)
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Cek autentikasi dan fetch data
   useEffect(() => {
     if (!mounted) return;
 
     const checkDetailedAuth = async () => {
       try {
-        console.log('🔍 Starting auth check for history page...');
-        
         await new Promise(resolve => setTimeout(resolve, 100));
-        
         const token = localStorage.getItem('auth_token');
-        console.log('Token exists in localStorage:', !!token);
-        
         if (!token) {
-          console.log('❌ No token found, setting unauthenticated');
           setAuthStatus('unauthenticated');
           return;
         }
-
-        console.log('🔍 Verifying token with backend...');
         const response = await fetch('http://localhost:5000/api/auth/check', {
           method: 'GET',
           headers: {
@@ -53,9 +46,7 @@ const History = () => {
 
         if (response.ok) {
           const result = await response.json();
-          
           if (result.authenticated) {
-            console.log('✅ User authenticated successfully');
             setAuthStatus('authenticated');
             await fetchHistoryData(token);
           } else {
@@ -67,7 +58,6 @@ const History = () => {
           setAuthStatus('unauthenticated');
         }
       } catch (error) {
-        console.error('❌ Error during auth check:', error);
         setAuthStatus('unauthenticated');
       }
     };
@@ -77,71 +67,46 @@ const History = () => {
     }
   }, [isCheckingAuth, mounted]);
 
-  // Handle redirect setelah auth status diketahui
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
-      console.log('🔄 Redirecting to login...');
       router.push('/login');
     }
   }, [authStatus, router]);
 
-  // PERBAIKAN: Endpoint yang benar untuk fetch history data
   const fetchHistoryData = async (token) => {
     try {
-      console.log('🔍 Fetching history data for user...');
-      setError(null); // Reset error state
-
-      // PERBAIKAN: Gunakan endpoint yang benar sesuai dengan app.js Express
+      setError(null);
+      setIsLoading(true);
       const response = await fetch('http://localhost:5000/api/predictions?limit=20', {
         method: 'GET',
         headers: {
           'x-access-token': token,
           'Content-Type': 'application/json'
         },
-        // Tambahkan timeout untuk menghindari hanging request
-        signal: AbortSignal.timeout(15000) // 15 detik timeout
+        signal: AbortSignal.timeout(15000)
       });
-
-      console.log('📥 History API response status:', response.status);
-      console.log('📥 History API response URL:', response.url);
 
       if (response.ok) {
         const result = await response.json();
-        console.log('✅ History data loaded:', result);
-        
         if (result.success && result.data) {
           setHistoryData(result.data);
-          console.log(`📊 Loaded ${result.data.length} history records`);
         } else {
-          console.log('⚠️ API returned success=false or no data');
           setHistoryData([]);
         }
       } else {
-        // Handle different HTTP status codes
         let errorMessage = 'Failed to fetch history data';
-        
         try {
           const errorResult = await response.json();
           errorMessage = errorResult.message || errorMessage;
-        } catch (parseError) {
-          console.log('Could not parse error response');
-        }
-
-        console.log('❌ Failed to fetch history data:', response.status, errorMessage);
-        
+        } catch {}
         if (response.status === 401 || response.status === 403) {
-          // Token expired or invalid
           localStorage.removeItem('auth_token');
           setAuthStatus('unauthenticated');
           return;
         }
-        
         setError(`${errorMessage} (Status: ${response.status})`);
       }
     } catch (error) {
-      console.error('❌ Error fetching history:', error);
-      
-      // Handle different types of errors
       if (error.name === 'AbortError') {
         setError('Request timeout - Please check your connection and try again');
       } else if (error.message.includes('Failed to fetch')) {
@@ -154,11 +119,9 @@ const History = () => {
     }
   };
 
-  // Enhanced retry function
   const handleRetry = async () => {
     setIsLoading(true);
     setError(null);
-    
     const token = localStorage.getItem('auth_token');
     if (token) {
       await fetchHistoryData(token);
@@ -167,51 +130,19 @@ const History = () => {
     }
   };
 
-  // PERBAIKAN: Delete prediction dengan endpoint yang benar
-  const handleDeletePrediction = async (predictionId) => {
-    if (!confirm('Are you sure you want to delete this prediction?')) {
-      return;
+  // MODAL ALERT: Otomatis hilang setelah 3 detik
+  useEffect(() => {
+    if (showSuccessAlert) {
+      const timer = setTimeout(() => setShowSuccessAlert(false), 3000);
+      return () => clearTimeout(timer);
     }
+  }, [showSuccessAlert]);
 
-    try {
-      setDeleteLoading(prev => ({ ...prev, [predictionId]: true }));
-      
-      const token = localStorage.getItem('auth_token');
-      
-      // PERBAIKAN: Gunakan endpoint yang benar
-      const response = await fetch(`http://localhost:5000/api/prediction/${predictionId}`, {
-        method: 'DELETE',
-        headers: {
-          'x-access-token': token,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Hapus dari state local
-        setHistoryData(prev => prev.filter(item => item.id !== predictionId));
-        alert('Prediction successfully deleted');
-      } else {
-        alert(`Error: ${result.message}`);
-      }
-    } catch (error) {
-      console.error('Error deleting prediction:', error);
-      alert('An error occurred during prediction deletion');
-    } finally {
-      setDeleteLoading(prev => ({ ...prev, [predictionId]: false }));
-    }
-  };
-
-  // PERBAIKAN: Delete all predictions dengan endpoint yang benar
+  // Delete all predictions dengan modal alert
   const handleDeleteAllPredictions = async () => {
     try {
       setIsLoading(true);
-      
       const token = localStorage.getItem('auth_token');
-      
-      // PERBAIKAN: Gunakan endpoint yang benar
       const response = await fetch('http://localhost:5000/api/predictions/all', {
         method: 'DELETE',
         headers: {
@@ -219,68 +150,133 @@ const History = () => {
           'Content-Type': 'application/json'
         }
       });
-
       const result = await response.json();
-
       if (result.success) {
         setHistoryData([]);
         setShowDeleteAllModal(false);
-        alert(`Successfully deleted ${result.deleted_count} predictions`);
+        setSuccessAlertMessage(`Successfully deleted ${result.deleted_count} predictions. Prediction numbers have been reset.`);
+        setShowSuccessAlert(true);
       } else {
         alert(`Error: ${result.message}`);
       }
     } catch (error) {
-      console.error('Error deleting all predictions:', error);
       alert('An error occurred while deleting all predictions');
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleDeletePrediction = async (predictionId) => {
+    if (!confirm('Are you sure you want to delete this prediction?')) {
+      return;
+    }
+    try {
+      setDeleteLoading(prev => ({ ...prev, [predictionId]: true }));
+      const token = localStorage.getItem('auth_token');
+      const response = await fetch(`http://localhost:5000/api/prediction/${predictionId}`, {
+        method: 'DELETE',
+        headers: {
+          'x-access-token': token,
+          'Content-Type': 'application/json'
+        }
+      });
+      const result = await response.json();
+      if (result.success) {
+        setHistoryData(prev => prev.filter(item => item.id !== predictionId));
+        setSuccessAlertMessage('Prediction successfully deleted');
+        setShowSuccessAlert(true);
+      } else {
+        alert(`Error: ${result.message}`);
+      }
+    } catch (error) {
+      alert('An error occurred during prediction deletion');
+    } finally {
+      setDeleteLoading(prev => ({ ...prev, [predictionId]: false }));
+    }
+  };
+
   const handleViewDetail = (predictionId) => {
-    // Simpan ID prediksi untuk ditampilkan di results dengan token
     const token = localStorage.getItem('auth_token');
-    
     const predictionDetail = {
       id: predictionId,
       fromHistory: true,
-      token: token // Pastikan token tersimpan untuk results page
+      token: token
     };
     localStorage.setItem('currentPrediction', JSON.stringify(predictionDetail));
     router.push('/predict/results');
   };
 
-  // Enhanced confidence formatting
-  const formatConfidence = (confidenceScore) => {
-    if (!confidenceScore && confidenceScore !== 0) return '0.0';
-    
-    const numValue = parseFloat(confidenceScore);
+  const formatConfidence = (prediction) => {
+    let confidenceValue = null;
+    if (prediction.confidence !== undefined && prediction.confidence !== null) {
+      confidenceValue = prediction.confidence;
+    } else if (prediction.confidence_score !== undefined && prediction.confidence_score !== null) {
+      confidenceValue = prediction.confidence_score;
+    } else {
+      return '0.0';
+    }
+    const numValue = parseFloat(confidenceValue);
     if (isNaN(numValue)) return '0.0';
-    
-    // Jika nilai dalam format desimal (0-1), konversi ke persentase
     if (numValue >= 0 && numValue <= 1) {
       return (numValue * 100).toFixed(1);
     }
-    
-    // Jika sudah dalam format persentase
     return numValue.toFixed(1);
+  };
+
+  const getPredictionResult = (prediction) => {
+    if (prediction.prediction && prediction.prediction !== 'N/A') {
+      return prediction.prediction;
+    }
+    if (prediction.prediction_result) {
+      try {
+        const parsed = typeof prediction.prediction_result === 'string' 
+          ? JSON.parse(prediction.prediction_result) 
+          : prediction.prediction_result;
+        return parsed.prediction || 'N/A';
+      } catch (e) {}
+    }
+    return 'N/A';
+  };
+
+  const getParameters = (prediction) => {
+    let parameters = {};
+    if (prediction.inputs) {
+      try {
+        let inputsData = [];
+        if (typeof prediction.inputs === 'string') {
+          inputsData = JSON.parse(prediction.inputs);
+        } else if (Array.isArray(prediction.inputs)) {
+          inputsData = prediction.inputs;
+        }
+        for (let i = 0; i < 30; i++) {
+          const paramKey = `P${i + 1}`;
+          parameters[paramKey] = i < inputsData.length ? parseFloat(inputsData[i]) || 0.0 : 0.0;
+        }
+      } catch (e) {
+        for (let i = 0; i < 30; i++) {
+          parameters[`P${i + 1}`] = 0.0;
+        }
+      }
+    } else if (prediction.parameters) {
+      parameters = prediction.parameters;
+    } else {
+      for (let i = 0; i < 30; i++) {
+        parameters[`P${i + 1}`] = 0.0;
+      }
+    }
+    return parameters;
   };
 
   const getQualityColor = (quality) => {
     switch (quality?.toLowerCase()) {
-      case 'excellent': return 'bg-green-100 text-green-800';
-      case 'good': return 'bg-blue-100 text-blue-800';
-      case 'fair': return 'bg-yellow-100 text-yellow-800';
-      case 'poor': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-green-100 text-green-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-red-100 text-red-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
-  const getPredictionColor = (result) => {
-    if (!result) return 'bg-gray-100 text-gray-800';
-    
-    const prediction = typeof result === 'string' ? result : result.prediction;
-    
+  const getPredictionColor = (prediction) => {
     switch (prediction) {
       case 'Normal': return 'bg-green-100 text-green-800';
       case 'Fiber Tapping': return 'bg-red-100 text-red-800';
@@ -294,7 +290,6 @@ const History = () => {
     }
   };
 
-  // Loading state
   if (!mounted || isCheckingAuth || authStatus === 'checking') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
@@ -308,12 +303,10 @@ const History = () => {
     );
   }
 
-  // Jika tidak terautentikasi, jangan render komponen
   if (authStatus === 'unauthenticated') {
     return null;
   }
 
-  // Enhanced error display dengan retry option
   if (error && !isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -337,21 +330,12 @@ const History = () => {
                 Back to Predict
               </button>
             </div>
-            
-            {/* Debug Information */}
-            <div className="mt-6 p-4 bg-gray-100 rounded-lg text-left max-w-md mx-auto">
-              <h4 className="font-semibold text-gray-700 mb-2">Debug Info:</h4>
-              <p className="text-sm text-gray-600">Expected endpoint: /api/predictions</p>
-              <p className="text-sm text-gray-600">Backend running on: http://localhost:5000</p>
-              <p className="text-sm text-gray-600">Check console for detailed logs</p>
-            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // Loading state during data fetch
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -369,7 +353,6 @@ const History = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      
       <div className="container mx-auto px-4 py-8 mt-20">
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">
@@ -385,7 +368,6 @@ const History = () => {
           )}
         </div>
 
-        {/* Action Buttons */}
         {historyData.length > 0 && (
           <div className="flex justify-between items-center mb-6">
             <button
@@ -424,18 +406,17 @@ const History = () => {
         ) : (
           <div className="grid gap-6">
             {historyData.map((prediction) => {
-              const predictionResult = prediction.prediction_result 
-                ? (typeof prediction.prediction_result === 'string' 
-                   ? JSON.parse(prediction.prediction_result) 
-                   : prediction.prediction_result)
-                : null;
+              const predictionResult = getPredictionResult(prediction);
+              const confidence = formatConfidence(prediction);
+              const parameters = getParameters(prediction);
+              const predictionNumber = prediction.prediction_number || prediction.id;
 
               return (
                 <div key={prediction.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800">
-                        Prediction #{prediction.id}
+                        Prediction #{predictionNumber}
                       </h3>
                       <p className="text-sm text-gray-500">
                         {new Date(prediction.created_at).toLocaleString('id-ID')}
@@ -445,22 +426,19 @@ const History = () => {
                       {prediction.quality_assessment?.toUpperCase() || 'N/A'}
                     </span>
                   </div>
-
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <div className="text-sm text-gray-600 mb-1">Prediction</div>
                       <div className={`text-lg font-bold p-2 rounded ${getPredictionColor(predictionResult)}`}>
-                        {predictionResult?.prediction || 'N/A'}
+                        {predictionResult}
                       </div>
                     </div>
-                    
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <div className="text-sm text-gray-600 mb-1">Confidence</div>
                       <div className="text-lg font-bold text-blue-600">
-                        {formatConfidence(prediction.confidence_score)}%
+                        {confidence}%
                       </div>
                     </div>
-                    
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
                       <div className="text-sm text-gray-600 mb-1">Input Type</div>
                       <div className="text-lg font-semibold text-gray-800 capitalize">
@@ -468,10 +446,30 @@ const History = () => {
                       </div>
                     </div>
                   </div>
-
+                  <div className="mb-4">
+                    <h4 className="text-sm font-semibold text-gray-700 mb-2">📊 Input Parameters</h4>
+                    <div className="grid grid-cols-5 gap-2 text-xs">
+                      {Object.entries(parameters).slice(0, 10).map(([key, value]) => (
+                        <div key={key} className="text-center p-1 bg-gray-100 rounded">
+                          <div className="font-medium text-gray-600">{key}</div>
+                          <div className="text-gray-800">{typeof value === 'number' ? value.toFixed(3) : value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {Object.keys(parameters).length > 10 && (
+                      <div className="text-center mt-2">
+                        <span className="text-xs text-gray-500">... and {Object.keys(parameters).length - 10} more parameters</span>
+                      </div>
+                    )}
+                  </div>
                   <div className="flex justify-between items-center">
                     <div className="text-sm text-gray-600">
-                      <span className="font-medium">Model Version:</span> {prediction.model_version || '1.0.0'}
+                      <span className="font-medium">Model Version:</span> {prediction.model_version || '2.0'}
+                      {prediction.snr && (
+                        <span className="ml-4">
+                          <span className="font-medium">SNR:</span> {parseFloat(prediction.snr).toFixed(2)}
+                        </span>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button
@@ -513,38 +511,61 @@ const History = () => {
             })}
           </div>
         )}
-      </div>
 
-      {/* Modal Delete All */}
-      {showDeleteAllModal && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center mb-4">
-              <svg className="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-              <h3 className="text-xl font-bold text-gray-800">Confirm Delete All</h3>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete all prediction history? This action cannot be undone and will permanently remove all your prediction data.
-            </p>
-            <div className="flex gap-4 justify-end">
-              <button
-                onClick={() => setShowDeleteAllModal(false)}
-                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 cursor-pointer transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteAllPredictions}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 cursor-pointer transition-colors"
-              >
-                Delete All
-              </button>
+        {/* Modal Delete All */}
+        {showDeleteAllModal && (
+          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="flex items-center mb-4">
+                <svg className="w-6 h-6 text-red-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+                <h3 className="text-xl font-bold text-gray-800">Confirm Delete All</h3>
+              </div>
+              <p className="text-gray-600 mb-6">
+                Are you sure you want to delete all prediction history? This action cannot be undone and will permanently remove all your prediction data.
+              </p>
+              <div className="flex gap-4 justify-end">
+                <button
+                  onClick={() => setShowDeleteAllModal(false)}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 cursor-pointer transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAllPredictions}
+                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 cursor-pointer transition-colors"
+                >
+                  Delete All & Reset Numbers
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Modal Success Alert */}
+        {showSuccessAlert && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+            <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full text-center animate-fade-in">
+              <div className="flex flex-col items-center">
+                <svg className="w-12 h-12 text-green-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" strokeWidth="2" stroke="currentColor" fill="none"/>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4"/>
+                </svg>
+                <h3 className="text-lg font-bold mb-2 text-green-700">Success</h3>
+                <div className="text-gray-700 mb-4">{successAlertMessage}</div>
+                <button
+                  className="px-6 py-2 cursor-pointer btn-gradient text-white rounded-lg transition"
+                  onClick={() => setShowSuccessAlert(false)}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
     </div>
   );
 };
