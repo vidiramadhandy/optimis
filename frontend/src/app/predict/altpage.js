@@ -15,7 +15,7 @@ const AltPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
-  // State untuk file processing
+  // File processing state
   const [isProcessing, setIsProcessing] = useState(false);
   const [processProgress, setProcessProgress] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
@@ -23,19 +23,19 @@ const AltPage = () => {
   const [processingStage, setProcessingStage] = useState('');
   const [isLargeDataset, setIsLargeDataset] = useState(false);
 
-  // State untuk loading spinner dan progress
+  // Loading spinner and progress
   const [uploadProgress, setUploadProgress] = useState(0);
   const [predictionProgress, setPredictionProgress] = useState(0);
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [startTime, setStartTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
 
-  // State untuk reset area upload
+  // For resetting upload area
   const [uploadAreaKey, setUploadAreaKey] = useState(Date.now());
 
   const router = useRouter();
 
-  // Timer untuk elapsed time
+  // Timer for elapsed time
   useEffect(() => {
     let interval = null;
     if (loading && startTime) {
@@ -48,7 +48,7 @@ const AltPage = () => {
     return () => clearInterval(interval);
   }, [loading, startTime]);
 
-  // Logic autentikasi
+  // Authentication check
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -82,7 +82,7 @@ const AltPage = () => {
     checkAuth();
   }, [router]);
 
-  // Check Flask service sebelum submit
+  // Check Flask service before submit
   const checkFlaskService = async () => {
     try {
       const response = await fetch('http://localhost:5001/health', {
@@ -104,12 +104,23 @@ const AltPage = () => {
     }
   };
 
-  // Fungsi processing file yang disederhanakan
+  // File processing function
   const processFile = useCallback(async (file) => {
     const fileExtension = file.name.split('.').pop().toLowerCase();
     const fileSizeMB = file.size / (1024 * 1024);
 
     setFileSize(file.size);
+
+    // Block CSV files
+    if (fileExtension === 'csv') {
+      setErrorMsg('CSV files are not supported. Please upload an Excel file (.xlsx or .xls).');
+      setSelectedFile(null);
+      setUploadedFileName('');
+      setTotalRows(0);
+      setEstimatedTime(0);
+      setFileSize(0);
+      return;
+    }
 
     if (file.size > 1000 * 1024 * 1024) { // 1GB limit
       setErrorMsg(`File too large (${fileSizeMB.toFixed(1)}MB). Maximum 1GB.`);
@@ -128,17 +139,15 @@ const AltPage = () => {
     try {
       let rowCount = 0;
 
-      if (fileExtension === 'csv') {
-        rowCount = await processCSV(file);
-      } else if (['xlsx', 'xls'].includes(fileExtension)) {
+      if (['xlsx', 'xls'].includes(fileExtension)) {
         rowCount = await processExcel(file);
       } else {
-        throw new Error('Unsupported file format. Use .csv, .xlsx, or .xls');
+        throw new Error('Unsupported file format. Only .xlsx or .xls files are allowed.');
       }
 
       setTotalRows(rowCount);
 
-      // Estimasi waktu berdasarkan ukuran file
+      // Estimate time based on row count
       const estimatedMinutes = Math.ceil(rowCount / 1000);
       setEstimatedTime(estimatedMinutes);
 
@@ -152,26 +161,7 @@ const AltPage = () => {
     }
   }, []);
 
-  // Proses CSV
-  const processCSV = useCallback(async (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        try {
-          const text = e.target.result;
-          const lines = text.split('\n').filter(line => line.trim());
-          const rowCount = lines.length - 1;
-          resolve(rowCount);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = () => reject(new Error('Failed to read CSV file'));
-      reader.readAsText(file);
-    });
-  }, []);
-
-  // Proses Excel
+  // Process Excel file
   const processExcel = useCallback(async (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -226,7 +216,7 @@ const AltPage = () => {
     }
   }, [processFile]);
 
-  // Reset state & area upload
+  // Reset state & upload area
   const handleUploadAgain = useCallback(() => {
     setSelectedFile(null);
     setUploadedFileName("");
@@ -240,10 +230,10 @@ const AltPage = () => {
     setEstimatedTime(0);
     setElapsedTime(0);
     setStartTime(null);
-    setUploadAreaKey(Date.now()); // Ubah key agar area upload di-render ulang
+    setUploadAreaKey(Date.now());
   }, []);
 
-  // Submit prediksi
+  // Submit prediction
   const handleConfirmPredict = async () => {
     if (!selectedFile) {
       setErrorMsg('Please upload a file first.');
@@ -270,7 +260,7 @@ const AltPage = () => {
       formData.append('file', selectedFile);
       const token = localStorage.getItem('auth_token');
 
-      // Simulasi upload progress
+      // Simulate upload progress
       const uploadInterval = setInterval(() => {
         setUploadProgress(prev => {
           if (prev >= 100) {
@@ -293,7 +283,7 @@ const AltPage = () => {
       clearInterval(uploadInterval);
       setUploadProgress(100);
 
-      // Simulasi prediction progress
+      // Simulate prediction progress
       const predictionInterval = setInterval(() => {
         setPredictionProgress(prev => {
           if (prev >= 90) {
@@ -440,29 +430,26 @@ const AltPage = () => {
       <div className="text-black relative z-20 w-full lg:w-2/3 bg-white p-8 rounded-lg shadow-lg mx-auto my-8">
         <h2 className="text-3xl font-bold mb-6 text-left">Upload Dataset for Prediction</h2>
         <p className="text-gray-600 mb-4">
-          Upload file with columns: SNR, P1, P2, ..., P30 (format .xlsx, .xls, or .csv)
+          Upload a file with columns: SNR, P1, P2, ..., P30 (format .xlsx or .xls)
         </p>
 
-        {/* Info dengan warning untuk file besar */}
+        {/* Large file warning */}
         <div className="mb-4 p-4 bg-amber-100 text-amber-800 rounded border border-amber-300">
           <h4 className="font-bold mb-2">⚠️ Disclaimer:</h4>
           <ul className="text-sm space-y-1">
-            <li>• Inserting a file with the size of more than 10Mb will consider as a large dataset file</li>
-            <li>• Files with 100K+ rows may take a few minutes to process</li>
-            <li>• For optimal performance, consider splitting files {'>'}100K rows</li>
-            <li>• Keep browser tab open during processing</li>
+            <li>• Only Excel files (.xlsx, .xls) are supported</li>
+            <li>• Files with more than 100K rows may take several minutes to process</li>
+            <li>• For optimal performance, split files with more than 100K rows</li>
+            <li>• Keep the browser tab open during processing</li>
           </ul>
         </div>
 
-        {/* Tampilkan loading spinner saat processing */}
         {loading ? (
           <LoadingSpinner />
         ) : (
           <>
-            {/* Area upload dibungkus dengan key */}
             {!results && (
               <div key={uploadAreaKey}>
-                {/* Upload area */}
                 <div
                   className="border-2 border-dashed rounded-xl p-12 text-center transition-colors duration-300 border-gray-300 hover:border-gray-400"
                   onDragEnter={handleDrag}
@@ -480,8 +467,8 @@ const AltPage = () => {
                   />
 
                   <label htmlFor="fileInput" className={`cursor-pointer ${isProcessing ? 'pointer-events-none' : ''}`}>
-                    <div className="text-gray-500 mb-4">
-                      {/* ICON FILE DOKUMEN */}
+                    <div className="text-gray-500 mb-4 flex flex-col items-center">
+                      {/* FILE ICON */}
                       <svg className="mx-auto h-12 w-12 mb-4" fill="none" viewBox="0 0 48 48" stroke="currentColor">
                         <rect x="8" y="6" width="34" height="40" rx="4" fill="#e0e7ef" stroke="#64748b" strokeWidth="2"/>
                         <path d="M15 14h14M15 22h12M15 30h8" stroke="#64748b" strokeWidth="2" strokeLinecap="round"/>
@@ -491,7 +478,7 @@ const AltPage = () => {
                         {isProcessing ? 'Processing...' : 'Choose File or Drag & Drop'}
                       </p>
                       <p className="text-sm text-gray-400 mt-2">
-                        Supports: .csv, .xlsx, .xls files (Max: 1GB)
+                        Supported: .xlsx, .xls (Max: 1GB)
                       </p>
                     </div>
                   </label>
@@ -505,7 +492,7 @@ const AltPage = () => {
                       <div><strong>File:</strong> {uploadedFileName}</div>
                       <div><strong>Size:</strong> {formatFileSize(fileSize)}</div>
                       <div><strong>Rows:</strong> {totalRows.toLocaleString()}</div>
-                      <div><strong>Est. Time:</strong> {estimatedTime > 0 ? `~${estimatedTime} minutes` : 'Calculating...'}</div>
+                      <div><strong>Estimated Time:</strong> {estimatedTime > 0 ? `~${estimatedTime} minutes` : 'Calculating...'}</div>
                     </div>
                     {totalRows > 100000 && (
                       <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">
@@ -515,7 +502,7 @@ const AltPage = () => {
                   </div>
                 )}
 
-                {/* Progress bar untuk file processing */}
+                {/* Progress bar for file processing */}
                 {isProcessing && (
                   <div className="mt-6">
                     <div className="flex justify-between text-sm text-gray-600 mb-2">
@@ -597,7 +584,6 @@ const AltPage = () => {
                 <div className="text-sm text-gray-600">Errors</div>
               </div>
             </div>
-
             {/* Sample results table */}
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="min-w-full text-sm border border-gray-300">
