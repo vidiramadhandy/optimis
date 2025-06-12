@@ -23,11 +23,12 @@ jobs:
       - name: Create and start virtual environment
         run: |
           python -m venv venv
-          source venv/bin/activate
+          source venv/bin/activate  # Activating the virtual environment
       
       - name: Install dependencies
         run: |
-          pip install -r backend/python/requirements.txt  
+          pip install --upgrade pip setuptools wheel  # Ensure latest versions of pip/setuptools
+          pip install -r backend/python/requirements.txt  # Installing dependencies
 
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
@@ -61,10 +62,21 @@ jobs:
       - name: List directory structure for debugging  # Check if python/requirements.txt is present
         run: ls -R backend/
 
-      - name: Install dependencies
+      - name: Set up Python version for deployment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Create and activate virtual environment in deploy job
         run: |
-          cd backend  
-          pip install -r python/requirements.txt  
+          python -m venv venv
+          source venv/bin/activate  # Activating the virtual environment in deploy
+
+      - name: Install dependencies in deploy job
+        run: |
+          pip install --upgrade pip setuptools wheel  # Ensuring the latest versions
+          cd backend  # Navigate to the backend folder
+          pip install -r python/requirements.txt  # Install dependencies from the requirements.txt
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
