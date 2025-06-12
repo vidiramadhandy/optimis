@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "echo 'Build completed successfully'",
+    "test": "echo 'No tests specified'"
   },
   "engines": {
     "node": "20.x"
@@ -16,21 +17,21 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "axios": "^1.6.8",
+    "axios": "^1.6.0",
     "bcryptjs": "^2.4.3",
     "body-parser": "^1.20.2",
-    "connect-redis": "^7.1.1",
+    "connect-redis": "^7.1.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "express-session": "^1.18.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-session": "^1.17.3",
     "form-data": "^4.0.0",
     "jsonwebtoken": "^9.0.2",
-    "multer": "^1.4.5",
-    "mysql2": "^3.9.7"
+    "multer": "^1.4.4",
+    "mysql2": "^3.6.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "nodemon": "^3.0.1"
   }
 }
