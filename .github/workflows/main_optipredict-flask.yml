@@ -1,18 +1,20 @@
+# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# More GitHub Actions for Azure: https://github.com/Azure/actions
+# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
+
 name: Build and deploy Python app to Azure Web App - optipredict-flask
 
 on:
   push:
     branches:
       - main
-    paths:
-      - "backend/python/**"
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # This is required for actions/checkout
+      contents: read #This is required for actions/checkout
 
     steps:
       - uses: actions/checkout@v4
@@ -22,25 +24,26 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
+      - name: Create and start virtual environment
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install -r backend/python/requirements.txt
-
-      # List the contents of backend/python directory before zipping
-      - name: List directory contents of backend/python (debugging step)
-        run: ls -l backend/python  # Verify that requirements.txt is there
+          python -m venv venv
+          source venv/bin/activate
+      
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+        
+      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Zip artifact for deployment
-        run: |
-          cd backend/python
-          zip -r ../../release.zip .  # Include everything in the backend/python directory
+        run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: release.zip
+          path: |
+            release.zip
+            !venv/
 
   deploy:
     runs-on: ubuntu-latest
@@ -58,30 +61,11 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
-      # List the contents of backend/python after unzipping
-      - name: List directory contents of backend/python after unzipping (debugging step)
-        run: ls -l backend/python  # Verify if requirements.txt is present
-
-      - name: Set up Python version for deployment
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Create and activate virtual environment in deploy job
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-
-      - name: Install dependencies in deploy job
-        run: |
-          cd backend/python  # Ensure we are in the correct directory before running pip install
-          pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt  # Now installing from the correct location
-
+      
       - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v2.2.9
+        uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
           app-name: 'optipredict-flask'
-          package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_3FBB1600CF2349F59327E935281CBB7E }}
+          slot-name: 'Production'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_D36D19738DAE44E78EA36B4C41614068 }}
