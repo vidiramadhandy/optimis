@@ -64,4 +64,4 @@ jobs:
         with:
           app-name: 'optipredict-flask'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_28EFFD119F48478A8C50A5A43B968AFC }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_3FBB1600CF2349F59327E935281CBB7E }}
