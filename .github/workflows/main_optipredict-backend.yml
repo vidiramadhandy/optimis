@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read #This is required for actions/checkout
 
     steps:
       - uses: actions/checkout@v4
@@ -24,21 +24,21 @@ jobs:
           node-version: '20.x'
 
       - name: npm install, build, and test
-        working-directory: ./backend  # ✅ TAMBAHKAN INI
+        working-directory: ./backend
         run: |
           npm install
           npm run build --if-present
           npm run test --if-present
 
       - name: Zip artifact for deployment
-        working-directory: ./backend  # ✅ TAMBAHKAN INI
+        working-directory: ./backend
         run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: ./backend/release.zip  # ✅ UBAH PATH INI
+          path: ./backend/release.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -58,9 +58,9 @@ jobs:
       
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@v2.2.9
         with:
           app-name: 'optipredict-backend'
           slot-name: 'Production'
           package: .
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_06C365DB499244B18FA27BBAF620BE34 }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_294C4373805C4D638AA28E69C19F4F3C }}
