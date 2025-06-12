@@ -27,14 +27,14 @@ jobs:
           python -m pip install --upgrade pip setuptools wheel
           pip install -r backend/python/requirements.txt
 
-      # Debug step: List directory structure before zipping the artifact
-      - name: List directory structure of backend/python before zipping
-        run: ls -R backend/python  # Verify that requirements.txt is there
+      # Verify the file paths before zipping the artifact
+      - name: List the backend/python directory (debugging step)
+        run: ls -l backend/python
 
-      - name: Zip artifact for deployment
+      - name: Zip artifact for deployment (only including necessary files)
         run: |
           cd backend/python
-          zip -r ../../release.zip . -x "__pycache__/*" "venv/*"
+          zip -r ../../release.zip . -x "venv/*" "__pycache__/*" 
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
@@ -58,20 +58,21 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
-      # Debug step: Ensure we are in the correct directory after unzipping
-      - name: List contents after unzipping (debugging step)
-        run: ls -R  # To ensure requirements.txt is present after unzipping
+      # Verify the unzipped file structure
+      - name: List the directory structure after unzipping (debugging step)
+        run: ls -l backend/python  # Check if requirements.txt is present
 
       - name: Set up Python version for deployment
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
+      # Ensure we're in the correct directory before installing dependencies
       - name: Install dependencies in deploy job
         run: |
-          cd backend/python  # Ensure we're in the correct directory before running pip install
+          cd backend/python  
           pip install --upgrade pip setuptools wheel
-          pip install -r requirements.txt  # Now installing from the correct location
+          pip install -r requirements.txt  
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v2.2.9
