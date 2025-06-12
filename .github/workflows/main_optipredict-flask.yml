@@ -1,4 +1,4 @@
-name: Build and deploy Python (Flask) app to Azure Web App - optipredict-flask
+name: Build and deploy Python app to Azure Web App - optipredict-flask
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: read  # This is required for actions/checkout
 
     steps:
       - uses: actions/checkout@v4
@@ -20,23 +20,28 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install dependencies
-        working-directory: ./backend
+      - name: Create and start virtual environment
         run: |
           python -m venv venv
-          source venv/bin/activate
-          pip install --upgrade pip
-          pip install -r python/requirements.txt  # Correct path to requirements.txt
+          source venv/bin/activate  # Activating the virtual environment
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip setuptools wheel  # Ensure latest versions of pip/setuptools
+          pip install -r backend/python/requirements.txt  # Installing dependencies
+
+      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Zip artifact for deployment
-        working-directory: ./backend
-        run: zip release.zip ./* -r
+        run: zip -r release.zip . -x "venv/*"  # Ensure folder structure is preserved, excluding venv
 
-      - name: Upload artifact for deployment job
+      - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: ./backend/release.zip
+          path: |
+            release.zip
+            !venv/
 
   deploy:
     runs-on: ubuntu-latest
@@ -46,6 +51,14 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     
     steps:
+      # Azure Login Step: Authenticating with Azure using Service Principal credentials
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
@@ -54,25 +67,29 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
+      - name: List directory structure for debugging  # Check if python/requirements.txt is present
+        run: ls -R backend/
+
       - name: Set up Python version for deployment
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Create and activate virtual environment
+      - name: Create and activate virtual environment in deploy job
         run: |
           python -m venv venv
-          source venv/bin/activate
+          source venv/bin/activate  # Activating the virtual environment in deploy
 
       - name: Install dependencies in deploy job
         run: |
-          pip install --upgrade pip
-          pip install -r backend/python/requirements.txt  # Correct path to requirements.txt
+          pip install --upgrade pip setuptools wheel  # Ensuring the latest versions
+          cd backend  # Navigate to the backend folder
+          pip install -r python/requirements.txt  # Install dependencies from the requirements.txt
 
       - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@v3  # Upgraded to the latest stable version
         id: deploy-to-webapp
         with:
           app-name: 'optipredict-flask'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_28EFFD119F48478A8C50A5A43B968AFC }}
