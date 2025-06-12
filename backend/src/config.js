@@ -6,7 +6,7 @@ module.exports = {
   db: {
     host: process.env.DB_HOST || 'localhost',
     user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
+    password: process.env.DB_PASSWORD || 'adaptive',
     database: process.env.DB_NAME || 'optipredict_database'
   }
 };
