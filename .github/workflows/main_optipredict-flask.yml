@@ -26,7 +26,7 @@ jobs:
           python -m venv venv
           source venv/bin/activate
           pip install --upgrade pip
-          pip install -r requirements.txt  # Ensure the correct path to requirements.txt
+          pip install -r python/requirements.txt  # Correct path to requirements.txt
 
       - name: Zip artifact for deployment
         working-directory: ./backend
@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies in deploy job
         run: |
           pip install --upgrade pip
-          pip install -r backend/requirements.txt  # Ensure the correct path to requirements.txt
+          pip install -r backend/python/requirements.txt  # Correct path to requirements.txt
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
