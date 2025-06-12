@@ -5,7 +5,7 @@ module.exports = {
   jwtExpire: '24h',
   db: {
     host: process.env.DB_HOST || 'localhost',
-    user: process.env.DB_USER || 'root',
+    user: process.env.DB_USER || 'admin',
     password: process.env.DB_PASSWORD || 'adaptive11!',
     database: process.env.DB_NAME || 'optipredict_database'
   }
