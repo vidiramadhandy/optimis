@@ -54,6 +54,9 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
+      - name: List contents of the unzipped artifact (debugging step)
+        run: ls -R  # List the entire directory structure to check if requirements.txt is present
+
       - name: Set up Python version for deployment
         uses: actions/setup-python@v5
         with:
@@ -67,7 +70,7 @@ jobs:
       - name: Install dependencies in deploy job
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install -r backend/python/requirements.txt  # Correct path to requirements.txt in the unzipped folder
+          pip install -r backend/python/requirements.txt  # Ensure the correct path
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v2.2.9
