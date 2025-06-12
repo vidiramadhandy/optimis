@@ -9,34 +9,39 @@ on:
       - main
   workflow_dispatch:
 
+env:
+  CI: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read #This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Node.js version
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20.x'
 
       - name: npm install, build, and test
+        working-directory: ./backend  # ✅ TAMBAHKAN INI
         run: |
           npm install
           npm run build --if-present
           npm run test --if-present
 
       - name: Zip artifact for deployment
+        working-directory: ./backend  # ✅ TAMBAHKAN INI
         run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: node-app
-          path: release.zip
+          path: ./backend/release.zip  # ✅ UBAH PATH INI
 
   deploy:
     runs-on: ubuntu-latest
@@ -44,9 +49,6 @@ jobs:
     environment:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
 
     steps:
       - name: Download artifact from build job
@@ -57,13 +59,6 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
       
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_2893D6C419A74A978F234ABBD4E05546 }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_E05875383F7C406CA5370022730A87A6 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_B58E1E7FAFD748D583216021D492F924 }}
-
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3
@@ -71,4 +66,4 @@ jobs:
           app-name: 'optipredict-backend'
           slot-name: 'Production'
           package: .
-          
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_BACKEND }}
