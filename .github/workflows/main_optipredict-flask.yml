@@ -1,4 +1,4 @@
-name: Build and deploy Python app to Azure Web App - optipredict-flask
+name: Build and deploy Python (Flask) app to Azure Web App - optipredict-flask
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read  # This is required for actions/checkout
+      contents: read
 
     steps:
       - uses: actions/checkout@v4
@@ -20,28 +20,23 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Create and start virtual environment
+      - name: Install dependencies
+        working-directory: ./backend
         run: |
           python -m venv venv
           source venv/bin/activate
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip setuptools wheel  # Ensure latest versions of pip/setuptools
-          pip install -r backend/python/requirements.txt  # Installing dependencies
-
-      # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+          pip install --upgrade pip
+          pip install -r python/requirements.txt
 
       - name: Zip artifact for deployment
-        run: zip -r release.zip . -x "venv/*"  # Ensure folder structure is preserved, excluding venv
+        working-directory: ./backend
+        run: zip release.zip ./* -r
 
-      - name: Upload artifact for deployment jobs
+      - name: Upload artifact for deployment job
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            release.zip
-            !venv/
+          path: ./backend/release.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -51,9 +46,6 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     
     steps:
-      # Azure Login Step: Authenticating with Azure using Service Principal credentials (if needed)
-      # If you prefer using publish profile, skip the login and use it in the deployment step instead.
-      
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
@@ -62,26 +54,21 @@ jobs:
       - name: Unzip artifact for deployment
         run: unzip release.zip
 
-      - name: List directory structure for debugging  # Check if python/requirements.txt is present
-        run: ls -R backend/
-
       - name: Set up Python version for deployment
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: Create and activate virtual environment in deploy job
+      - name: Create and activate virtual environment
         run: |
           python -m venv venv
-          source venv/bin/activate  
+          source venv/bin/activate
 
       - name: Install dependencies in deploy job
         run: |
-          pip install --upgrade pip setuptools wheel  
-          cd backend  # Navigate to the backend folder
-          pip install -r python/requirements.txt  
+          pip install --upgrade pip
+          pip install -r backend/python/requirements.txt
 
-      # Deploy to Azure Web App using Publish Profile
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
