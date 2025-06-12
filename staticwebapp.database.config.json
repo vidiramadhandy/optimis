@@ -1,0 +1,10 @@
+{
+  "$schema": "https://github.com/Azure/static-web-apps/releases/download/v1/staticwebapp.database.config.json",
+  "data-api": {
+    "enabled": true,
+    "runtime": "nodejs",
+    "options": {
+      "connection-string": "@env('DATABASE_CONNECTION_STRING')"
+    }
+  }
+}
