@@ -1,7 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-# More info on Python, GitHub Actions, and Azure App Service: https://aka.ms/python-webapps-actions
-
 name: Build and deploy Python app to Azure Web App - optipredict-flask
 
 on:
@@ -57,6 +53,21 @@ jobs:
 
       - name: Unzip artifact for deployment
         run: unzip release.zip
+
+      - name: Set up Python version for deployment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Create and activate virtual environment in deploy job
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+
+      - name: Install dependencies in deploy job
+        run: |
+          pip install --upgrade pip setuptools wheel
+          pip install -r backend/python/requirements.txt  # Correct path to requirements.txt
 
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v2.2.9
