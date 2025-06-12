@@ -23,7 +23,7 @@ jobs:
       - name: Create and start virtual environment
         run: |
           python -m venv venv
-          source venv/bin/activate  # Activating the virtual environment
+          source venv/bin/activate
 
       - name: Install dependencies
         run: |
@@ -51,12 +51,9 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     
     steps:
-      # Azure Login Step: Authenticating with Azure using Service Principal credentials
-      - name: Azure Login
-        uses: azure/login@v1
-        with:
-          creds: '{"clientId": "${{ secrets.AZURE_CLIENT_ID }}", "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}", "tenantId": "${{ secrets.AZURE_TENANT_ID }}"}'
-
+      # Azure Login Step: Authenticating with Azure using Service Principal credentials (if needed)
+      # If you prefer using publish profile, skip the login and use it in the deployment step instead.
+      
       - name: Download artifact from build job
         uses: actions/download-artifact@v4
         with:
@@ -76,18 +73,19 @@ jobs:
       - name: Create and activate virtual environment in deploy job
         run: |
           python -m venv venv
-          source venv/bin/activate  # Activating the virtual environment in deploy
+          source venv/bin/activate  
 
       - name: Install dependencies in deploy job
         run: |
-          pip install --upgrade pip setuptools wheel  # Ensuring the latest versions
+          pip install --upgrade pip setuptools wheel  
           cd backend  # Navigate to the backend folder
-          pip install -r python/requirements.txt  # Install dependencies from the requirements.txt
+          pip install -r python/requirements.txt  
 
+      # Deploy to Azure Web App using Publish Profile
       - name: 'Deploy to Azure Web App'
         uses: azure/webapps-deploy@v3
         id: deploy-to-webapp
         with:
           app-name: 'optipredict-flask'
           slot-name: 'Production'
-          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_28EFFD119F48478A8C50A5A43B968AFC }}
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
