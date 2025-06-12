@@ -8,6 +8,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "backend/python/**"
   workflow_dispatch:
 
 jobs:
@@ -25,24 +27,26 @@ jobs:
           python-version: '3.10'
 
       - name: Create and start virtual environment
+        working-directory: ./backend/python
         run: |
           python -m venv venv
           source venv/bin/activate
       
       - name: Install dependencies
+        working-directory: ./backend/python
         run: pip install -r requirements.txt
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
 
       - name: Zip artifact for deployment
+        working-directory: ./backend/python
         run: zip release.zip ./* -r
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v4
         with:
           name: python-app
-          path: |
-            release.zip
+          path: ./backend/python/release.zip
             !venv/
 
   deploy:
@@ -63,7 +67,7 @@ jobs:
 
       
       - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v3
+        uses: azure/webapps-deploy@v2.2.9
         id: deploy-to-webapp
         with:
           app-name: 'optipredict-flask'
