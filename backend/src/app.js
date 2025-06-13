@@ -14,6 +14,7 @@ const fs = require('fs');
 
 const app = express();
 
+// Middleware timeout untuk file besar
 app.use((req, res, next) => {
   const contentLength = req.get('content-length');
   const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
@@ -38,12 +39,37 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(cors({
-  origin: [ 'https://brave-plant-0181b0910.azurestaticapps.net', 'http://localhost:3000'],
+// ✅ PERBAIKAN KONFIGURASI CORS
+const corsOptions = {
+  origin: [
+    'https://brave-plant-0181b0910.6.azurestaticapps.net', // ✅ URL yang benar
+    'https://brave-plant-0181b0910.azurestaticapps.net',   // Backup
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // ✅ Tambahkan OPTIONS
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'x-access-token',
+    'Accept',
+    'Origin',
+    'X-Requested-With'
+  ],
+  optionsSuccessStatus: 200 // ✅ Untuk browser lama
+};
+
+app.use(cors(corsOptions));
+
+// ✅ Handler preflight OPTIONS secara eksplisit
+app.options('*', cors(corsOptions));
+
+// ✅ Middleware debug untuk monitoring request
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  next();
+});
 
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
@@ -51,6 +77,7 @@ app.use(cookieParser());
 
 const FLASK_ML_URL = 'http://localhost:5001';
 
+// Konfigurasi multer untuk upload file
 const upload = multer({ 
   dest: 'uploads/',
   limits: {
@@ -67,6 +94,7 @@ const upload = multer({
   }
 });
 
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
@@ -76,15 +104,19 @@ app.get('/api/auth/check', async (req, res) => {
     const token = req.headers['x-access-token'] || 
                   req.cookies.token || 
                   (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+    
     if (!token) {
       return res.status(401).json({ authenticated: false, message: 'Token tidak ditemukan' });
     }
+
     try {
       const decoded = jwt.verify(token, config.jwtSecret);
       const [users] = await db.query('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
+      
       if (users.length === 0) {
         return res.status(401).json({ authenticated: false, message: 'User tidak ditemukan di database' });
       }
+
       const user = users[0];
       res.json({
         authenticated: true, 
@@ -103,14 +135,16 @@ app.get('/api/auth/check', async (req, res) => {
   }
 });
 
-// ENDPOINT MANUAL PREDICT (TAMBAHAN)
+// ENDPOINT MANUAL PREDICT
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const data = req.body;
+    
     if (!data.userId) {
       data.userId = userId;
     }
+
     const flaskResponse = await axios.post(
       `${FLASK_ML_URL}/predict`,
       data,
@@ -120,6 +154,7 @@ app.post('/api/predict', verifyToken, async (req, res) => {
         validateStatus: status => status < 600
       }
     );
+
     if (flaskResponse.status === 200) {
       res.json(flaskResponse.data);
     } else {
@@ -145,9 +180,11 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const limit = req.query.limit || 50;
+    
     if (!userId || isNaN(userId)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
     }
+
     const flaskResponse = await axios.get(
       `${FLASK_ML_URL}/predictions/${userId}?limit=${limit}`,
       {
@@ -157,6 +194,7 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
         }
       }
     );
+
     if (flaskResponse.status === 200) {
       res.json(flaskResponse.data);
     } else {
@@ -186,12 +224,15 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
   }
 });
 
+// Delete all predictions
 app.delete('/api/predictions/all', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
+    
     if (!userId || isNaN(userId)) {
       return res.status(400).json({ success: false, message: 'Invalid user ID' });
     }
+
     const flaskResponse = await axios.delete(
       `${FLASK_ML_URL}/predictions/all/${userId}`,
       {
@@ -201,6 +242,7 @@ app.delete('/api/predictions/all', verifyToken, async (req, res) => {
         }
       }
     );
+
     if (flaskResponse.status === 200) {
       res.json(flaskResponse.data);
     } else {
@@ -218,13 +260,16 @@ app.delete('/api/predictions/all', verifyToken, async (req, res) => {
   }
 });
 
+// Delete single prediction
 app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const predictionId = req.params.id;
+    
     if (!predictionId || isNaN(predictionId)) {
       return res.status(400).json({ success: false, message: 'Invalid prediction ID' });
     }
+
     const flaskResponse = await axios.delete(
       `${FLASK_ML_URL}/prediction/${predictionId}?userId=${userId}`,
       {
@@ -234,6 +279,7 @@ app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
         }
       }
     );
+
     if (flaskResponse.status === 200) {
       res.json(flaskResponse.data);
     } else {
@@ -251,6 +297,7 @@ app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
   }
 });
 
+// Health check ML service
 app.get('/api/ml-health', async (req, res) => {
   try {
     const response = await axios.get(`${FLASK_ML_URL}/health`, { timeout: 5000 });
@@ -268,6 +315,7 @@ app.get('/api/ml-health', async (req, res) => {
   }
 });
 
+// Fungsi untuk sanitize JSON data
 function sanitizeJsonData(obj) {
   if (obj === null || obj === undefined) {
     return obj;
@@ -297,33 +345,39 @@ function sanitizeJsonData(obj) {
   return obj;
 }
 
+// Endpoint untuk prediksi file batch
 app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, res) => {
   let tempFilePath = null;
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'File tidak ditemukan dalam request' });
     }
+
     tempFilePath = req.file.path;
     const fileSizeMB = req.file.size / (1024 * 1024);
+    
     if (req.file.size === 0) {
       return res.status(400).json({ success: false, message: 'File kosong atau tidak valid' });
     }
+
     const formData = new FormData();
     formData.append('file', fs.createReadStream(req.file.path), {
       filename: req.file.originalname,
       contentType: req.file.mimetype
     });
     formData.append('userId', req.userId.toString());
+
     let timeoutDuration;
     if (fileSizeMB > 100) {
-      timeoutDuration = 14400000;
+      timeoutDuration = 14400000; // 4 jam
     } else if (fileSizeMB > 50) {
-      timeoutDuration = 7200000;
+      timeoutDuration = 7200000;  // 2 jam
     } else if (fileSizeMB > 20) {
-      timeoutDuration = 3600000;
+      timeoutDuration = 3600000;  // 1 jam
     } else {
-      timeoutDuration = 1800000;
+      timeoutDuration = 1800000;  // 30 menit
     }
+
     const flaskResponse = await axios.post(
       `${FLASK_ML_URL}/predict-file`,
       formData,
@@ -341,6 +395,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
         }
       }
     );
+
     if (flaskResponse.status >= 400) {
       return res.status(flaskResponse.status).json({
         success: false,
@@ -348,6 +403,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
         status: flaskResponse.status
       });
     }
+
     let responseData;
     try {
       let cleanedData = flaskResponse.data;
@@ -355,6 +411,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
       cleanedData = cleanedData.replace(/:\s*NaN\s*([,}])/g, ': null$1');
       cleanedData = cleanedData.replace(/:\s*Infinity\s*([,}])/g, ': null$1');
       cleanedData = cleanedData.replace(/:\s*-Infinity\s*([,}])/g, ': null$1');
+      
       responseData = JSON.parse(cleanedData);
       responseData = sanitizeJsonData(responseData);
     } catch (parseError) {
@@ -364,21 +421,26 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
         error: parseError.message
       });
     }
+
     const requiredFields = ['success', 'message', 'total_rows', 'processed_rows', 'results'];
     const missingFields = requiredFields.filter(field => responseData[field] === undefined);
+    
     if (missingFields.length > 0) {
       return res.status(500).json({
         success: false,
         message: `Response dari Flask ML service tidak lengkap. Missing fields: ${missingFields.join(', ')}`
       });
     }
+
     let optimizedResults = responseData.results;
     let isLimited = false;
+    
     if (responseData.results && responseData.results.length > 10000) {
       optimizedResults = responseData.results.slice(0, 10000);
       isLimited = true;
       responseData.message = `${responseData.message} (Menampilkan 10,000 baris pertama dari ${responseData.processed_rows} total baris)`;
     }
+
     const finalResponse = {
       success: Boolean(responseData.success),
       message: String(responseData.message || ''),
@@ -391,6 +453,8 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
       processing_time: `${Math.round(timeoutDuration/60000)} minutes timeout`,
       results: Array.isArray(optimizedResults) ? optimizedResults : []
     };
+
+    // Simpan ke database
     try {
       await db.query(`
         INSERT INTO excel_inputs (
@@ -406,9 +470,15 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
         finalResponse.processed_rows,
         'success'
       ]);
-    } catch {}
+    } catch (dbError) {
+      console.log('Database insert error:', dbError.message);
+    }
+
     res.json(finalResponse);
+
   } catch (error) {
+    console.error('❌ Error /api/predict-file:', error.message);
+    
     if (error.code === 'ECONNREFUSED') {
       res.status(503).json({
         success: false,
@@ -433,10 +503,13 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
       });
     }
   } finally {
+    // Cleanup temporary file
     if (tempFilePath && fs.existsSync(tempFilePath)) {
       try {
         fs.unlinkSync(tempFilePath);
-      } catch {}
+      } catch (cleanupError) {
+        console.log('File cleanup error:', cleanupError.message);
+      }
     }
   }
 });
@@ -448,6 +521,7 @@ const server = app.listen(PORT, () => {
   console.log(`⏰ Extended timeout untuk file besar: 4 jam maksimal`);
   console.log(`📊 Support untuk file hingga 500MB`);
   console.log(`🔐 Menangani autentikasi dan routing ke ML service`);
+  console.log(`🌐 CORS dikonfigurasi untuk: https://brave-plant-0181b0910.6.azurestaticapps.net`);
   console.log(`📋 Available endpoints:`);
   console.log(`   - POST /api/predict (manual predict)`);
   console.log(`   - POST /api/predict-file (batch prediction)`);
@@ -457,8 +531,9 @@ const server = app.listen(PORT, () => {
   console.log(`   - GET  /api/ml-health (health check)`);
 });
 
-server.timeout = 14400000;
-server.keepAliveTimeout = 14400000;
-server.headersTimeout = 14400000;
+// Set timeout untuk server
+server.timeout = 14400000;           // 4 jam
+server.keepAliveTimeout = 14400000;  // 4 jam
+server.headersTimeout = 14400000;    // 4 jam
 
 module.exports = app;
