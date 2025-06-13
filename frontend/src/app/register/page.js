@@ -30,7 +30,7 @@ const Register = () => {
 
         try {
             const API_BASE_URL = process.env.NODE_ENV === 'production' 
-                ? 'https://optipredict-backend.azurewebsites.net'
+                ? 'https://optipredict-backend-d0gmgaercxhbfbc0.centralus-01.azurewebsites.net'
                 : 'http://localhost:5000';
             const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
                 method: 'POST',
