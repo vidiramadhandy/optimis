@@ -2,9 +2,9 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "src/app.js",
+  "main": "app.js",
   "scripts": {
-    "start": "node src/app.js",
+    "start": "node app.js",
     "dev": "nodemon src/app.js",
     "build": "echo 'Build completed successfully'",
     "test": "echo 'No tests specified'"
