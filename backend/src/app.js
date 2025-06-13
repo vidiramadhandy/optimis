@@ -15,55 +15,55 @@ const fs = require('fs');
 const app = express();
 
 // ✅ MIDDLEWARE CORS MANUAL YANG SEDERHANA
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  const allowedOrigins = [
-    'https://brave-plant-0181b0910.6.azurestaticapps.net',
-    'https://brave-plant-0181b0910.azurestaticapps.net',
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ];
+// app.use((req, res, next) => {
+//   const origin = req.headers.origin;
+//   const allowedOrigins = [
+//     'https://brave-plant-0181b0910.6.azurestaticapps.net',
+//     'https://brave-plant-0181b0910.azurestaticapps.net',
+//     'http://localhost:3000',
+//     'http://localhost:3001'
+//   ];
 
-  console.log(`🌐 ${req.method} ${req.path} from origin: ${origin}`);
+//   console.log(`🌐 ${req.method} ${req.path} from origin: ${origin}`);
 
-  // Set CORS headers untuk semua request
-  if (allowedOrigins.includes(origin) || !origin) {
-    res.header('Access-Control-Allow-Origin', origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-access-token, Accept, Origin, X-Requested-With');
-  }
+//   // Set CORS headers untuk semua request
+//   if (allowedOrigins.includes(origin) || !origin) {
+//     res.header('Access-Control-Allow-Origin', origin || '*');
+//     res.header('Access-Control-Allow-Credentials', 'true');
+//     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+//     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-access-token, Accept, Origin, X-Requested-With');
+//   }
 
-  // Handle preflight OPTIONS request
-  if (req.method === 'OPTIONS') {
-    console.log(`🚀 Handling OPTIONS preflight for ${req.path}`);
-    return res.status(200).end();
-  }
+//   // Handle preflight OPTIONS request
+//   if (req.method === 'OPTIONS') {
+//     console.log(`🚀 Handling OPTIONS preflight for ${req.path}`);
+//     return res.status(200).end();
+//   }
 
-  next();
-});
+//   next();
+// });
 
-// Middleware timeout untuk file besar
-app.use((req, res, next) => {
-  const contentLength = req.get('content-length');
-  const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
-  if (req.path === '/api/predict-file') {
-    if (fileSizeMB > 100) {
-      req.setTimeout(14400000);
-      res.setTimeout(14400000);
-    } else if (fileSizeMB > 50) {
-      req.setTimeout(7200000);
-      res.setTimeout(7200000);
-    } else {
-      req.setTimeout(3600000);
-      res.setTimeout(3600000);
-    }
-  } else {
-    req.setTimeout(600000);
-    res.setTimeout(600000);
-  }
-  next();
-});
+// // Middleware timeout untuk file besar
+// app.use((req, res, next) => {
+//   const contentLength = req.get('content-length');
+//   const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
+//   if (req.path === '/api/predict-file') {
+//     if (fileSizeMB > 100) {
+//       req.setTimeout(14400000);
+//       res.setTimeout(14400000);
+//     } else if (fileSizeMB > 50) {
+//       req.setTimeout(7200000);
+//       res.setTimeout(7200000);
+//     } else {
+//       req.setTimeout(3600000);
+//       res.setTimeout(3600000);
+//     }
+//   } else {
+//     req.setTimeout(600000);
+//     res.setTimeout(600000);
+//   }
+//   next();
+// });
 
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
