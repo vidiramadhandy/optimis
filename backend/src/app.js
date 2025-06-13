@@ -1,5 +1,5 @@
 const express = require('express');
-const cors = require('cors');
+// const cors = require('cors'); // COMMENT OUT untuk sementara
 const cookieParser = require('cookie-parser');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
@@ -14,6 +14,35 @@ const fs = require('fs');
 
 const app = express();
 
+// ✅ MIDDLEWARE CORS MANUAL YANG SEDERHANA
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://brave-plant-0181b0910.6.azurestaticapps.net',
+    'https://brave-plant-0181b0910.azurestaticapps.net',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ];
+
+  console.log(`🌐 ${req.method} ${req.path} from origin: ${origin}`);
+
+  // Set CORS headers untuk semua request
+  if (allowedOrigins.includes(origin) || !origin) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-access-token, Accept, Origin, X-Requested-With');
+  }
+
+  // Handle preflight OPTIONS request
+  if (req.method === 'OPTIONS') {
+    console.log(`🚀 Handling OPTIONS preflight for ${req.path}`);
+    return res.status(200).end();
+  }
+
+  next();
+});
+
 // Middleware timeout untuk file besar
 app.use((req, res, next) => {
   const contentLength = req.get('content-length');
@@ -22,15 +51,12 @@ app.use((req, res, next) => {
     if (fileSizeMB > 100) {
       req.setTimeout(14400000);
       res.setTimeout(14400000);
-      console.log(`⏰ Setting 4-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
     } else if (fileSizeMB > 50) {
       req.setTimeout(7200000);
       res.setTimeout(7200000);
-      console.log(`⏰ Setting 2-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
     } else {
       req.setTimeout(3600000);
       res.setTimeout(3600000);
-      console.log(`⏰ Setting 1-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
     }
   } else {
     req.setTimeout(600000);
@@ -39,95 +65,25 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ KONFIGURASI CORS YANG LEBIH ROBUST
-const corsOptions = {
-  origin: function (origin, callback) {
-    const allowedOrigins = [
-      'https://brave-plant-0181b0910.6.azurestaticapps.net',
-      'https://brave-plant-0181b0910.azurestaticapps.net',
-      'http://localhost:3000',
-      'http://localhost:3001'
-    ];
-    
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log(`❌ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: [
-    'Content-Type', 
-    'Authorization', 
-    'x-access-token',
-    'Accept',
-    'Origin',
-    'X-Requested-With'
-  ],
-  optionsSuccessStatus: 200,
-  preflightContinue: false
-};
-
-app.use(cors(corsOptions));
-
-// ✅ Handler preflight OPTIONS yang lebih eksplisit
-app.options('*', (req, res) => {
-  const origin = req.headers.origin;
-  const allowedOrigins = [
-    'https://brave-plant-0181b0910.6.azurestaticapps.net',
-    'https://brave-plant-0181b0910.azurestaticapps.net',
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ];
-  
-  if (allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-access-token, Accept, Origin, X-Requested-With');
-  }
-  
-  res.status(200).end();
-});
-
-// ✅ Middleware debug yang lebih detail
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  console.log(`Origin: ${req.headers.origin}`);
-  console.log('---');
-  next();
-});
-
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(cookieParser());
 
-const FLASK_ML_URL = 'http://localhost:5001';
-
-// Konfigurasi multer untuk upload file
-const upload = multer({ 
-  dest: 'uploads/',
-  limits: {
-    fileSize: 500 * 1024 * 1024,
-  },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['.csv', '.xlsx', '.xls'];
-    const fileExt = file.originalname.toLowerCase().slice(-4);
-    if (allowedTypes.some(type => file.originalname.toLowerCase().endsWith(type))) {
-      cb(null, true);
-    } else {
-      cb(new Error('Format file tidak didukung. Hanya .csv, .xlsx, .xls yang diizinkan.'));
-    }
-  }
+// ✅ ENDPOINT TESTING CORS
+app.get('/api/test-cors', (req, res) => {
+  console.log('🧪 CORS test endpoint hit');
+  res.json({
+    success: true,
+    message: 'CORS working correctly',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+
 
 // Endpoint untuk cek autentikasi
 app.get('/api/auth/check', async (req, res) => {
