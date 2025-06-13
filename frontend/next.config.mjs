@@ -5,7 +5,6 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // Konfigurasi tambahan untuk Azure Static Web Apps
   assetPrefix: '',
   basePath: ''
 };
