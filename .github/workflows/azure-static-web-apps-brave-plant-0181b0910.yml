@@ -30,5 +30,5 @@ jobs:
           api_location: ""
           output_location: ".next"
         env:
-          NEXT_PUBLIC_API_URL: "https://optipredict-backend.azurewebsites.net"
+          NEXT_PUBLIC_API_URL: "https://optipredict-backend-d0gmgaercxhbfbc0.centralus-01.azurewebsites.net/"
           NODE_ENV: "production"
