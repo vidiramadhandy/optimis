@@ -1,5 +1,4 @@
 const express = require('express');
-// const cors = require('cors'); // COMMENT OUT untuk sementara
 const cookieParser = require('cookie-parser');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
@@ -11,59 +10,20 @@ const db = require('./db');
 const multer = require('multer');
 const FormData = require('form-data');
 const fs = require('fs');
+const path = require('path');
 
 const app = express();
 
-// ✅ MIDDLEWARE CORS MANUAL YANG SEDERHANA
-// app.use((req, res, next) => {
-//   const origin = req.headers.origin;
-//   const allowedOrigins = [
-//     'https://brave-plant-0181b0910.6.azurestaticapps.net',
-//     'https://brave-plant-0181b0910.azurestaticapps.net',
-//     'http://localhost:3000',
-//     'http://localhost:3001'
-//   ];
-
-//   console.log(`🌐 ${req.method} ${req.path} from origin: ${origin}`);
-
-//   // Set CORS headers untuk semua request
-//   if (allowedOrigins.includes(origin) || !origin) {
-//     res.header('Access-Control-Allow-Origin', origin || '*');
-//     res.header('Access-Control-Allow-Credentials', 'true');
-//     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-//     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-access-token, Accept, Origin, X-Requested-With');
-//   }
-
-//   // Handle preflight OPTIONS request
-//   if (req.method === 'OPTIONS') {
-//     console.log(`🚀 Handling OPTIONS preflight for ${req.path}`);
-//     return res.status(200).end();
-//   }
-
-//   next();
-// });
-
-// // Middleware timeout untuk file besar
-// app.use((req, res, next) => {
-//   const contentLength = req.get('content-length');
-//   const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
-//   if (req.path === '/api/predict-file') {
-//     if (fileSizeMB > 100) {
-//       req.setTimeout(14400000);
-//       res.setTimeout(14400000);
-//     } else if (fileSizeMB > 50) {
-//       req.setTimeout(7200000);
-//       res.setTimeout(7200000);
-//     } else {
-//       req.setTimeout(3600000);
-//       res.setTimeout(3600000);
-//     }
-//   } else {
-//     req.setTimeout(600000);
-//     res.setTimeout(600000);
-//   }
-//   next();
-// });
+// ✅ BUAT FOLDER UPLOADS JIKA BELUM ADA
+const uploadsDir = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+  try {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('📁 Created uploads directory');
+  } catch (error) {
+    console.log('📁 Upload directory creation failed:', error.message);
+  }
+}
 
 // ✅ KONFIGURASI MULTER
 const upload = multer({ 
@@ -83,17 +43,65 @@ const upload = multer({
 });
 
 // ✅ KONSTANTA FLASK ML URL
-const FLASK_ML_URL = 'http://localhost:5001';
+const FLASK_ML_URL = process.env.FLASK_ML_URL || 'http://localhost:5001';
 
+// Middleware timeout untuk file besar
+app.use((req, res, next) => {
+  const contentLength = req.get('content-length');
+  const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
+  if (req.path === '/api/predict-file') {
+    if (fileSizeMB > 100) {
+      req.setTimeout(14400000);
+      res.setTimeout(14400000);
+      console.log(`⏰ Setting 4-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
+    } else if (fileSizeMB > 50) {
+      req.setTimeout(7200000);
+      res.setTimeout(7200000);
+      console.log(`⏰ Setting 2-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
+    } else {
+      req.setTimeout(3600000);
+      res.setTimeout(3600000);
+      console.log(`⏰ Setting 1-hour timeout for ${fileSizeMB.toFixed(2)}MB file`);
+    }
+  } else {
+    req.setTimeout(600000);
+    res.setTimeout(600000);
+  }
+  next();
+});
+
+// ✅ MIDDLEWARE DASAR - BIARKAN AZURE HANDLE CORS
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(cookieParser());
 
-// ✅ ENDPOINT TESTING
+// ✅ ENDPOINT TESTING SEDERHANA
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'OptiPredict Backend API',
+    status: 'Running',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
+});
+
 app.get('/api/test', (req, res) => {
   res.json({ 
-    message: 'Backend working', 
-    timestamp: new Date().toISOString() 
+    message: 'Backend working correctly',
+    timestamp: new Date().toISOString(),
+    status: 'OK',
+    environment: process.env.NODE_ENV || 'development'
+  });
+});
+
+// ✅ HEALTH CHECK ENDPOINT
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    version: process.version
   });
 });
 
@@ -134,6 +142,7 @@ app.get('/api/auth/check', async (req, res) => {
       return res.status(401).json({ authenticated: false, message: 'Token tidak valid atau expired' });
     }
   } catch (error) {
+    console.error('Error in auth check:', error);
     res.status(500).json({ authenticated: false, message: 'Error internal server' });
   }
 });
@@ -207,6 +216,7 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('Error getting predictions:', error);
     if (error.code === 'ECONNREFUSED') {
       res.status(503).json({
         success: false,
@@ -255,6 +265,7 @@ app.delete('/api/predictions/all', verifyToken, async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('Error deleting all predictions:', error);
     res.status(500).json({
       success: false,
       message: 'Gagal menghapus predictions',
@@ -292,6 +303,7 @@ app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('Error deleting prediction:', error);
     res.status(500).json({
       success: false,
       message: 'Gagal menghapus prediction',
@@ -310,6 +322,7 @@ app.get('/api/ml-health', async (req, res) => {
       mlService: response.data
     });
   } catch (error) {
+    console.error('ML service health check failed:', error);
     res.status(503).json({
       success: false,
       message: 'ML service tidak tersedia',
@@ -418,6 +431,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
       responseData = JSON.parse(cleanedData);
       responseData = sanitizeJsonData(responseData);
     } catch (parseError) {
+      console.error('JSON parse error:', parseError);
       return res.status(500).json({
         success: false,
         message: 'Response dari Flask ML service mengandung data tidak valid (NaN values)',
@@ -517,26 +531,62 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
   }
 });
 
+// ✅ ERROR HANDLING MIDDLEWARE
+app.use((error, req, res, next) => {
+  console.error('Unhandled error:', error);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+  });
+});
+
+// ✅ 404 HANDLER
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint not found',
+    path: req.originalUrl
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Express server berjalan di http://localhost:${PORT}`);
-  console.log(`⏰ Extended timeout untuk file besar: 4 jam maksimal`);
-  console.log(`📊 Support untuk file hingga 500MB`);
-  console.log(`🔐 Menangani autentikasi dan routing ke ML service`);
-  console.log(`🌐 CORS dikonfigurasi untuk: https://brave-plant-0181b0910.6.azurestaticapps.net`);
+  console.log(`📁 Upload directory: ${uploadsDir}`);
+  console.log(`🔗 Flask ML URL: ${FLASK_ML_URL}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📋 Available endpoints:`);
+  console.log(`   - GET  / (root)`);
+  console.log(`   - GET  /api/test (health check)`);
+  console.log(`   - GET  /api/health (detailed health)`);
   console.log(`   - POST /api/predict (manual predict)`);
   console.log(`   - POST /api/predict-file (batch prediction)`);
   console.log(`   - GET  /api/predictions (history)`);
   console.log(`   - DELETE /api/predictions/all (delete all)`);
   console.log(`   - DELETE /api/prediction/:id (delete one)`);
-  console.log(`   - GET  /api/ml-health (health check)`);
+  console.log(`   - GET  /api/ml-health (ML service health)`);
 });
 
 // Set timeout untuk server
 server.timeout = 14400000;           // 4 jam
 server.keepAliveTimeout = 14400000;  // 4 jam
 server.headersTimeout = 14400000;    // 4 jam
+
+// ✅ GRACEFUL SHUTDOWN
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+  });
+});
 
 module.exports = app;
