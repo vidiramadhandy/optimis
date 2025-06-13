@@ -65,25 +65,41 @@ const app = express();
 //   next();
 // });
 
+// ✅ KONFIGURASI MULTER
+const upload = multer({ 
+  dest: 'uploads/',
+  limits: {
+    fileSize: 500 * 1024 * 1024, // 500MB
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['.csv', '.xlsx', '.xls'];
+    const fileExt = file.originalname.toLowerCase().slice(-4);
+    if (allowedTypes.some(type => file.originalname.toLowerCase().endsWith(type))) {
+      cb(null, true);
+    } else {
+      cb(new Error('Format file tidak didukung. Hanya .csv, .xlsx, .xls yang diizinkan.'));
+    }
+  }
+});
+
+// ✅ KONSTANTA FLASK ML URL
+const FLASK_ML_URL = 'http://localhost:5001';
+
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(cookieParser());
 
-// ✅ ENDPOINT TESTING CORS
-app.get('/api/test-cors', (req, res) => {
-  console.log('🧪 CORS test endpoint hit');
-  res.json({
-    success: true,
-    message: 'CORS working correctly',
-    origin: req.headers.origin,
-    timestamp: new Date().toISOString()
+// ✅ ENDPOINT TESTING
+app.get('/api/test', (req, res) => {
+  res.json({ 
+    message: 'Backend working', 
+    timestamp: new Date().toISOString() 
   });
 });
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-
 
 // Endpoint untuk cek autentikasi
 app.get('/api/auth/check', async (req, res) => {
