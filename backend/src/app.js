@@ -39,16 +39,27 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ PERBAIKAN KONFIGURASI CORS
+// ✅ KONFIGURASI CORS YANG LEBIH ROBUST
 const corsOptions = {
-  origin: [
-    'https://brave-plant-0181b0910.6.azurestaticapps.net', // ✅ URL yang benar
-    'https://brave-plant-0181b0910.azurestaticapps.net',   // Backup
-    'http://localhost:3000',
-    'http://localhost:3001'
-  ],
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://brave-plant-0181b0910.6.azurestaticapps.net',
+      'https://brave-plant-0181b0910.azurestaticapps.net',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+    
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'], // ✅ Tambahkan OPTIONS
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type', 
     'Authorization', 
@@ -57,17 +68,37 @@ const corsOptions = {
     'Origin',
     'X-Requested-With'
   ],
-  optionsSuccessStatus: 200 // ✅ Untuk browser lama
+  optionsSuccessStatus: 200,
+  preflightContinue: false
 };
 
 app.use(cors(corsOptions));
 
-// ✅ Handler preflight OPTIONS secara eksplisit
-app.options('*', cors(corsOptions));
+// ✅ Handler preflight OPTIONS yang lebih eksplisit
+app.options('*', (req, res) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://brave-plant-0181b0910.6.azurestaticapps.net',
+    'https://brave-plant-0181b0910.azurestaticapps.net',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ];
+  
+  if (allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-access-token, Accept, Origin, X-Requested-With');
+  }
+  
+  res.status(200).end();
+});
 
-// ✅ Middleware debug untuk monitoring request
+// ✅ Middleware debug yang lebih detail
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  console.log(`${req.method} ${req.path}`);
+  console.log(`Origin: ${req.headers.origin}`);
+  console.log('---');
   next();
 });
 
