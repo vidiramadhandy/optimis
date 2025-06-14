@@ -1,4 +1,5 @@
-'use client'; // Menandakan bahwa ini adalah client component
+// frontend/src/app/register/page.js - PERBAIKI URL
+'use client';
 
 import InputError from '@/components/InputError';
 import Link from 'next/link';
@@ -24,35 +25,105 @@ const Register = () => {
             return;
         }
 
+        // Validasi input
+        if (!name.trim() || !email.trim() || !password.trim()) {
+            setErrors({ general: 'All fields are required' });
+            return;
+        }
+
         setLoading(true);
         setErrors({});
         setSuccessMessage('');
 
         try {
-            const API_BASE_URL = process.env.NODE_ENV === 'production' 
-                ? 'https://optipredict-backend-d0gmgaercxhbfbc0.centralus-01.azurewebsites.net'
-                : 'http://localhost:5000';
-            const response = await fetch(`https://optipredict-backend-d0gmgaercxhbfbc0.centralus-01.azurewebsites.net/api/auth/register`, {
+            // ✅ PERBAIKI URL - HAPUS TYPO 'hbfbc0' MENJADI 'hbfc0'
+            const API_URL = 'https://optipredict-backend-d0gmgaercxhbfc0.centralus-01.azurewebsites.net';
+            
+            console.log('📤 Sending registration request to:', `${API_URL}/api/auth/register`);
+            console.log('📤 Data:', { name, email, password });
+            
+            const response = await fetch(`${API_URL}/api/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json',
                 },
-                body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation }),
+                body: JSON.stringify({ 
+                    name: name.trim(), 
+                    email: email.trim().toLowerCase(), 
+                    password: password 
+                }),
             });
 
-            const data = await response.json();
+            console.log('📥 Response status:', response.status);
+            console.log('📥 Response ok:', response.ok);
 
-            if (response.ok) {
-                setSuccessMessage('User successfully registered!');
-                router.push('/login');
-            } else {
-                setErrors(data.error ? { general: data.error } : { general: 'Something went wrong. Please try again.' });
+            // ✅ GET RESPONSE TEXT FIRST UNTUK DEBUGGING
+            const responseText = await response.text();
+            console.log('📥 Raw response text:', responseText);
+
+            // ✅ CHECK IF RESPONSE IS EMPTY
+            if (!responseText.trim()) {
+                throw new Error('Empty response from server');
             }
+
+            // ✅ CHECK IF RESPONSE IS HTML (ERROR PAGE)
+            if (responseText.trim().startsWith('<')) {
+                throw new Error('Server returned HTML instead of JSON. Check backend logs.');
+            }
+
+            // ✅ TRY TO PARSE JSON
+            let data;
+            try {
+                data = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('❌ JSON parse error:', parseError);
+                throw new Error(`Invalid JSON response: ${parseError.message}`);
+            }
+
+            if (response.ok && data.success) {
+                setSuccessMessage(data.message || 'User successfully registered!');
+                setTimeout(() => {
+                    router.push('/login');
+                }, 2000);
+            } else {
+                const errorMessage = data.message || data.error || 'Registration failed';
+                setErrors({ general: errorMessage });
+            }
+
         } catch (error) {
-            console.error('Error during registration:', error);
-            setErrors({ general: 'Something went wrong. Please try again.' });
+            console.error('❌ Error during registration:', error);
+            
+            if (error.message.includes('Empty response')) {
+                setErrors({ general: 'Server tidak merespons. Silakan coba lagi.' });
+            } else if (error.message.includes('HTML instead of JSON')) {
+                setErrors({ general: 'Server error. Silakan coba lagi nanti.' });
+            } else if (error.message.includes('Invalid JSON')) {
+                setErrors({ general: 'Response server tidak valid. Silakan coba lagi.' });
+            } else {
+                setErrors({ general: error.message || 'Something went wrong. Please try again.' });
+            }
         } finally {
             setLoading(false);
+        }
+    };
+
+    // ✅ TAMBAHKAN TEST CONNECTION FUNCTION
+    const testConnection = async () => {
+        try {
+            setSuccessMessage('Testing connection...');
+            const API_URL = 'https://optipredict-backend-d0gmgaercxhbfc0.centralus-01.azurewebsites.net';
+            const response = await fetch(`${API_URL}/api/health`);
+            const responseText = await response.text();
+            
+            if (responseText.trim()) {
+                const data = JSON.parse(responseText);
+                setSuccessMessage(`✅ Connection successful: ${data.status || 'OK'}`);
+            } else {
+                setErrors({ general: '❌ Connection failed: Empty response' });
+            }
+        } catch (error) {
+            setErrors({ general: `❌ Connection failed: ${error.message}` });
         }
     };
 
@@ -74,6 +145,17 @@ const Register = () => {
                 <div className="text-gray-800 w-full max-w-md bg-white/95 backdrop-blur-sm p-8 rounded-lg shadow-xl mx-4">
                     <div className="text-3xl font-bold mb-6 text-center">
                         <h1>Sign Up for OptiPredict</h1>
+                    </div>
+
+                    {/* ✅ TAMBAHKAN TEST CONNECTION BUTTON */}
+                    <div className="mb-4">
+                        <button
+                            type="button"
+                            onClick={testConnection}
+                            className="w-full bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600 transition-colors"
+                        >
+                            Test Connection
+                        </button>
                     </div>
 
                     <form onSubmit={submitForm}>
@@ -163,11 +245,11 @@ const Register = () => {
                             </div>
                         )}
 
-                        <div className="flex text-sm text-gray-600items-center justify-center mt-6">
+                        <div className="flex text-sm text-gray-600 items-center justify-center mt-6">
                             Already registered?
                             <Link
                                 href="/login"
-                                className="underline text-sm text-gray-600 hover:text-gray-900 transition-colors">
+                                className="underline text-sm text-gray-600 hover:text-gray-900 transition-colors ml-1">
                                 Sign in here
                             </Link>
                         </div>

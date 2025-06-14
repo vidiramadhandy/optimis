@@ -1,5 +1,5 @@
 const express = require('express');
-const cors = require('cors'); // TAMBAHKAN CORS
+const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
@@ -15,7 +15,7 @@ const path = require('path');
 
 const app = express();
 
-// ✅ CORS CONFIGURATION YANG LENGKAP - TAMBAHKAN INI
+// ✅ CORS CONFIGURATION YANG LENGKAP
 const corsOptions = {
   origin: [
     'http://localhost:3000',
@@ -40,6 +40,34 @@ const corsOptions = {
 // ✅ TAMBAHKAN CORS MIDDLEWARE SEBELUM SEMUA ROUTES
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
+
+// ✅ MIDDLEWARE UNTUK LOGGING REQUESTS - PINDAHKAN KE ATAS
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log('Headers:', req.headers);
+  console.log('Body:', req.body);
+  next();
+});
+
+// ✅ MIDDLEWARE UNTUK ENSURE JSON RESPONSE VALID
+app.use((req, res, next) => {
+  const originalJson = res.json;
+  res.json = function(obj) {
+    try {
+      // Pastikan object bisa di-serialize
+      JSON.stringify(obj);
+      return originalJson.call(this, obj);
+    } catch (error) {
+      console.error('❌ JSON serialization error:', error);
+      return originalJson.call(this, {
+        success: false,
+        message: 'Internal server error',
+        error: 'Response serialization failed'
+      });
+    }
+  };
+  next();
+});
 
 // ✅ BUAT FOLDER UPLOADS JIKA BELUM ADA
 const uploadsDir = path.join(__dirname, 'uploads');
@@ -98,49 +126,101 @@ app.use((req, res, next) => {
 });
 
 // ✅ MIDDLEWARE DASAR - PERBAIKI JSON HANDLING
-app.use(express.json({ limit: '500mb' }));
+app.use(express.json({ 
+  limit: '500mb',
+  strict: false,
+  verify: (req, res, buf, encoding) => {
+    if (buf && buf.length) {
+      try {
+        JSON.parse(buf);
+      } catch (error) {
+        console.error('❌ JSON Parse Error:', error.message);
+        console.error('❌ Raw body:', buf.toString());
+        req.jsonError = error;
+      }
+    }
+  }
+}));
+
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(cookieParser());
 
-// ✅ MIDDLEWARE UNTUK LOGGING REQUESTS
+// ✅ MIDDLEWARE UNTUK HANDLE JSON ERROR
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  if (req.jsonError) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON format',
+      error: 'Malformed JSON in request body'
+    });
+  }
   next();
 });
 
 // ✅ ENDPOINT TESTING SEDERHANA
 app.get('/', (req, res) => {
-  res.json({ 
-    message: 'OptiPredict Backend API',
-    status: 'Running',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0'
-  });
+  try {
+    res.json({ 
+      success: true,
+      message: 'OptiPredict Backend API',
+      status: 'Running',
+      timestamp: new Date().toISOString(),
+      version: '1.0.0'
+    });
+  } catch (error) {
+    console.error('Error in root endpoint:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 });
 
 app.get('/api/test', (req, res) => {
-  res.json({ 
-    message: 'Backend working correctly',
-    timestamp: new Date().toISOString(),
-    status: 'OK',
-    environment: process.env.NODE_ENV || 'development'
-  });
+  try {
+    res.json({ 
+      success: true,
+      message: 'Backend working correctly',
+      timestamp: new Date().toISOString(),
+      status: 'OK',
+      environment: process.env.NODE_ENV || 'development'
+    });
+  } catch (error) {
+    console.error('Error in test endpoint:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 });
 
 // ✅ HEALTH CHECK ENDPOINT
 app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    version: process.version
-  });
+  try {
+    res.status(200).json({
+      success: true,
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: process.version
+    });
+  } catch (error) {
+    console.error('Error in health endpoint:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
+// ✅ ROUTES DENGAN ERROR HANDLING
+try {
+  app.use('/api/auth', authRoutes);
+  app.use('/api/users', userRoutes);
+} catch (error) {
+  console.error('Error loading routes:', error);
+}
 
 // Endpoint untuk cek autentikasi
 app.get('/api/auth/check', async (req, res) => {
@@ -150,7 +230,11 @@ app.get('/api/auth/check', async (req, res) => {
                   (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
     
     if (!token) {
-      return res.status(401).json({ authenticated: false, message: 'Token tidak ditemukan' });
+      return res.status(401).json({ 
+        success: false,
+        authenticated: false, 
+        message: 'Token tidak ditemukan' 
+      });
     }
 
     try {
@@ -158,11 +242,16 @@ app.get('/api/auth/check', async (req, res) => {
       const [users] = await db.query('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
       
       if (users.length === 0) {
-        return res.status(401).json({ authenticated: false, message: 'User tidak ditemukan di database' });
+        return res.status(401).json({ 
+          success: false,
+          authenticated: false, 
+          message: 'User tidak ditemukan di database' 
+        });
       }
 
       const user = users[0];
       res.json({
+        success: true,
         authenticated: true, 
         user: {
           id: user.id,
@@ -172,11 +261,19 @@ app.get('/api/auth/check', async (req, res) => {
         message: 'User terautentikasi'
       });
     } catch (jwtError) {
-      return res.status(401).json({ authenticated: false, message: 'Token tidak valid atau expired' });
+      return res.status(401).json({ 
+        success: false,
+        authenticated: false, 
+        message: 'Token tidak valid atau expired' 
+      });
     }
   } catch (error) {
     console.error('Error in auth check:', error);
-    res.status(500).json({ authenticated: false, message: 'Error internal server' });
+    res.status(500).json({ 
+      success: false,
+      authenticated: false, 
+      message: 'Error internal server' 
+    });
   }
 });
 
@@ -563,9 +660,37 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
   }
 });
 
-// ✅ ERROR HANDLING MIDDLEWARE
+// ✅ ERROR HANDLING MIDDLEWARE YANG DIPERBAIKI
 app.use((error, req, res, next) => {
-  console.error('Unhandled error:', error);
+  console.error('❌ Global error handler:', error);
+  console.error('❌ Error stack:', error.stack);
+  
+  // Handle specific error types
+  if (error instanceof SyntaxError && error.status === 400 && 'body' in error) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON syntax',
+      error: 'Malformed JSON in request body'
+    });
+  }
+  
+  if (error.type === 'entity.parse.failed') {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid JSON format',
+      error: 'Request body contains malformed JSON'
+    });
+  }
+  
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Validation error',
+      error: error.message
+    });
+  }
+  
+  // Default error response
   res.status(500).json({
     success: false,
     message: 'Internal server error',
@@ -575,14 +700,24 @@ app.use((error, req, res, next) => {
 
 // ✅ 404 HANDLER
 app.use('*', (req, res) => {
+  console.log('❓ 404 - Route not found:', req.originalUrl);
   res.status(404).json({
     success: false,
     message: 'Endpoint not found',
-    path: req.originalUrl
+    path: req.originalUrl,
+    method: req.method,
+    availableEndpoints: [
+      'GET /',
+      'GET /api/health',
+      'GET /api/test',
+      'POST /api/auth/register',
+      'POST /api/auth/login',
+      'POST /api/predict'
+    ]
   });
 });
 
-// ✅ GANTI PORT DARI 5000 KE 8080 UNTUK AZURE
+// ✅ PORT CONFIGURATION UNTUK AZURE
 const PORT = process.env.PORT || 8080;
 
 const server = app.listen(PORT, '0.0.0.0', () => {
@@ -609,14 +744,14 @@ server.headersTimeout = 14400000;    // 4 jam
 
 // ✅ GRACEFUL SHUTDOWN
 process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
+  console.log('🛑 SIGTERM received, shutting down gracefully');
   server.close(() => {
     console.log('Process terminated');
   });
 });
 
 process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
+  console.log('🛑 SIGINT received, shutting down gracefully');
   server.close(() => {
     console.log('Process terminated');
   });
