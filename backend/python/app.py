@@ -25,8 +25,8 @@ CORS(app)
 DB_CONFIG = {
     'host': 'localhost',
     'port': 3306,
-    'user': 'root',
-    'password': '',
+    'user': 'capstone',
+    'password': 'Adaptive6798',
     'database': 'optipredict_database',
     'pool_name': 'mypool',
     'pool_size': 5,  # PERBAIKAN: Increased pool size
@@ -37,8 +37,6 @@ DB_CONFIG = {
     'charset': 'utf8mb4',
     'use_unicode': True,
     'connection_timeout': 30,
-    'read_timeout': 60,
-    'write_timeout': 60
 }
 
 # Path model dan scaler

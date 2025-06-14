@@ -58,7 +58,7 @@ const AltPage = () => {
           return;
         }
 
-        const response = await fetch('http://localhost:5000/api/auth/check', {
+        const response = await fetch('http://20.189.116.138:5000/api/auth/check', {
           headers: { 'x-access-token': token },
           credentials: 'include',
         });
@@ -85,7 +85,7 @@ const AltPage = () => {
   // Check Flask service before submit
   const checkFlaskService = async () => {
     try {
-      const response = await fetch('http://localhost:5001/health', {
+      const response = await fetch('http://20.189.116.138:5001/health', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });

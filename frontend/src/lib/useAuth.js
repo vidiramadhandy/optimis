@@ -25,7 +25,7 @@ export function useAuth() {
       }
 
       // Verifikasi token dengan backend
-      const response = await fetch('http://localhost:5000/api/auth/check', {
+      const response = await fetch('http://20.189.116.138:5000/api/auth/check', {
         method: 'GET',
         headers: {
           'x-access-token': token
@@ -67,7 +67,7 @@ export function useAuth() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch('http://20.189.116.138:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -116,7 +116,7 @@ export function useAuth() {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      const response = await fetch('http://20.189.116.138:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
@@ -142,7 +142,7 @@ export function useAuth() {
 
   const logout = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/auth/logout', {
+      const response = await fetch('http://20.189.116.138:5000/api/auth/logout', {
         method: 'POST',
         credentials: 'include',
       });

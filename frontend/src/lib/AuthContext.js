@@ -91,7 +91,7 @@ export function AuthProvider({ children }) {
         return null;
       }
 
-      const response = await fetch('http://localhost:5000/api/auth/me', {
+      const response = await fetch('http://20.189.116.138:5000/api/auth/me', {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -128,7 +128,7 @@ export function AuthProvider({ children }) {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch('http://20.189.116.138:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -194,7 +194,7 @@ export function AuthProvider({ children }) {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:5000/api/auth/register', {
+      const response = await fetch('http://20.189.116.138:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(userData),
@@ -223,7 +223,7 @@ export function AuthProvider({ children }) {
     try {
       const token = localStorage.getItem('auth_token');
       if (token) {
-        await fetch('http://localhost:5000/api/auth/logout', {
+        await fetch('http://20.189.116.138:5000/api/logout', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`

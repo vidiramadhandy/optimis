@@ -36,7 +36,7 @@ const History = () => {
           setAuthStatus('unauthenticated');
           return;
         }
-        const response = await fetch('http://localhost:5000/api/auth/check', {
+        const response = await fetch('http://20.189.116.138:5000/api/auth/check', {
           method: 'GET',
           headers: {
             'x-access-token': token,
@@ -77,7 +77,7 @@ const History = () => {
     try {
       setError(null);
       setIsLoading(true);
-      const response = await fetch('http://localhost:5000/api/predictions?limit=20', {
+      const response = await fetch('http://20.189.116.138:5000/api/predictions?limit=20', {
         method: 'GET',
         headers: {
           'x-access-token': token,
