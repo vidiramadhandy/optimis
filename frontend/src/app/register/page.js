@@ -1,4 +1,4 @@
-// frontend/src/app/register/page.js - PERBAIKI URL
+// frontend/src/app/register/page.js - PERBAIKAN LENGKAP
 'use client';
 
 import InputError from '@/components/InputError';
@@ -36,7 +36,7 @@ const Register = () => {
         setSuccessMessage('');
 
         try {
-            // ✅ PERBAIKI URL - HAPUS TYPO 'hbfbc0' MENJADI 'hbfc0'
+            // ✅ PERBAIKI URL - PASTIKAN BENAR
             const API_URL = 'https://optipredict-backend-d0gmgaercxhbfc0.centralus-01.azurewebsites.net';
             
             console.log('📤 Sending registration request to:', `${API_URL}/api/auth/register`);
@@ -57,6 +57,7 @@ const Register = () => {
 
             console.log('📥 Response status:', response.status);
             console.log('📥 Response ok:', response.ok);
+            console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
 
             // ✅ GET RESPONSE TEXT FIRST UNTUK DEBUGGING
             const responseText = await response.text();
@@ -78,8 +79,11 @@ const Register = () => {
                 data = JSON.parse(responseText);
             } catch (parseError) {
                 console.error('❌ JSON parse error:', parseError);
+                console.error('❌ Response text that failed to parse:', responseText);
                 throw new Error(`Invalid JSON response: ${parseError.message}`);
             }
+
+            console.log('📥 Parsed data:', data);
 
             if (response.ok && data.success) {
                 setSuccessMessage(data.message || 'User successfully registered!');
@@ -100,6 +104,8 @@ const Register = () => {
                 setErrors({ general: 'Server error. Silakan coba lagi nanti.' });
             } else if (error.message.includes('Invalid JSON')) {
                 setErrors({ general: 'Response server tidak valid. Silakan coba lagi.' });
+            } else if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                setErrors({ general: 'Tidak dapat terhubung ke server. Periksa koneksi internet.' });
             } else {
                 setErrors({ general: error.message || 'Something went wrong. Please try again.' });
             }
@@ -108,21 +114,41 @@ const Register = () => {
         }
     };
 
-    // ✅ TAMBAHKAN TEST CONNECTION FUNCTION
+    // ✅ ENHANCED TEST CONNECTION FUNCTION
     const testConnection = async () => {
         try {
             setSuccessMessage('Testing connection...');
+            setErrors({});
+            
             const API_URL = 'https://optipredict-backend-d0gmgaercxhbfc0.centralus-01.azurewebsites.net';
-            const response = await fetch(`${API_URL}/api/health`);
+            
+            console.log('🔍 Testing connection to:', `${API_URL}/api/health`);
+            
+            const response = await fetch(`${API_URL}/api/health`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+            });
+            
+            console.log('📥 Health check response status:', response.status);
+            console.log('📥 Health check response ok:', response.ok);
+            
             const responseText = await response.text();
+            console.log('📥 Health check raw response:', responseText);
             
             if (responseText.trim()) {
-                const data = JSON.parse(responseText);
-                setSuccessMessage(`✅ Connection successful: ${data.status || 'OK'}`);
+                try {
+                    const data = JSON.parse(responseText);
+                    setSuccessMessage(`✅ Connection successful: ${data.status || 'OK'}`);
+                } catch (parseError) {
+                    setSuccessMessage(`✅ Connection successful but response not JSON: ${responseText.substring(0, 100)}...`);
+                }
             } else {
                 setErrors({ general: '❌ Connection failed: Empty response' });
             }
         } catch (error) {
+            console.error('❌ Connection test error:', error);
             setErrors({ general: `❌ Connection failed: ${error.message}` });
         }
     };
@@ -147,7 +173,7 @@ const Register = () => {
                         <h1>Sign Up for OptiPredict</h1>
                     </div>
 
-                    {/* ✅ TAMBAHKAN TEST CONNECTION BUTTON */}
+                    {/* ✅ ENHANCED TEST CONNECTION BUTTON */}
                     <div className="mb-4">
                         <button
                             type="button"
