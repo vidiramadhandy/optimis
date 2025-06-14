@@ -1,5 +1,6 @@
 *cbm filter=lfs diff=lfs merge=lfs -text
 *.cbm filter=lfs diff=lfs merge=lfs -text
 backend/python/catboost_model.cbm filter=lfs diff=lfs merge=lfs -text
+*.so filter=lfs diff=lfs merge=lfs -text
 * !text !filter !merge !diff
 backend/python/*.cbm filter=lfs diff=lfs merge=lfs -text
