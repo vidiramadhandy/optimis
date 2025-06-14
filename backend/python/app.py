@@ -12,11 +12,8 @@ import joblib
 from datetime import datetime
 import traceback
 import time
-import threading
 from concurrent.futures import ThreadPoolExecutor
 import re
-import hashlib
-from multiprocessing import Pool, cpu_count
 
 app = Flask(__name__)
 CORS(app)
@@ -25,11 +22,11 @@ CORS(app)
 DB_CONFIG = {
     'host': 'localhost',
     'port': 3306,
-    'user': 'root',
-    'password': '',
+    'user': 'capstone',
+    'password': 'Adaptive6798',
     'database': 'optipredict_database',
     'pool_name': 'mypool',
-    'pool_size': 5,  # PERBAIKAN: Increased pool size
+    'pool_size': 5,
     'pool_reset_session': True,
     'autocommit': True,
     'connect_timeout': 30,
@@ -37,8 +34,6 @@ DB_CONFIG = {
     'charset': 'utf8mb4',
     'use_unicode': True,
     'connection_timeout': 30,
-    'read_timeout': 60,
-    'write_timeout': 60
 }
 
 # Path model dan scaler
@@ -59,7 +54,7 @@ PREDICTION_LABELS = {
 
 model = None
 snr_scaler = None
-executor = ThreadPoolExecutor(max_workers=4)  # PERBAIKAN: Increased workers
+executor = ThreadPoolExecutor(max_workers=4)
 connection_pool = None
 
 def init_connection_pool():
@@ -96,62 +91,46 @@ def load_model_and_scaler():
         traceback.print_exc()
         return False
 
-# PERBAIKAN: Optimized batch prediction function
+def ensure_model_and_scaler():
+    global model, snr_scaler
+    if model is None or snr_scaler is None:
+        print("⚠️ Model atau scaler belum dimuat, mencoba reload...")
+        loaded = load_model_and_scaler()
+        if not loaded:
+            raise RuntimeError("Model atau scaler gagal dimuat")
+
 def predict_batch_optimized(model, snr_scaler, snr_values, inputs_matrix):
-    """
-    Optimized batch prediction using vectorized operations
-    """
     try:
         start_time = time.time()
-        
-        # Convert to numpy arrays for faster processing
         snr_array = np.array(snr_values, dtype=np.float32).reshape(-1, 1)
         inputs_array = np.array(inputs_matrix, dtype=np.float32)
-        
         print(f"📊 Processing batch of {len(snr_values)} samples...")
-        
-        # PERBAIKAN: Vectorized SNR normalization
+
         snr_normalized = snr_scaler.transform(snr_array).flatten()
-        
-        # PERBAIKAN: Combine features efficiently
         features_matrix = np.column_stack([snr_normalized, inputs_array])
-        
         print(f"📊 Features matrix shape: {features_matrix.shape}")
-        
-        # PERBAIKAN: Single batch prediction call
+
         probabilities = model.predict_proba(features_matrix)
         predicted_classes = np.argmax(probabilities, axis=1)
         confidence_scores = np.max(probabilities, axis=1)
-        
-        # PERBAIKAN: Vectorized label mapping
         predictions = [PREDICTION_LABELS.get(cls, "Unknown") for cls in predicted_classes]
         confidences = confidence_scores * 100
-        
         processing_time = time.time() - start_time
         print(f"✅ Batch prediction completed in {processing_time:.2f} seconds")
-        
         return predictions, confidences, snr_normalized
-        
     except Exception as e:
         print(f"❌ Error in batch prediction: {e}")
         traceback.print_exc()
         return None, None, None
 
-# PERBAIKAN: Optimized database batch insert
 def batch_insert_predictions(user_id, predictions_data, batch_size=1000):
-    """
-    Insert predictions in batches for better performance
-    """
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         if not conn:
             return False
-        
         cursor = conn.cursor()
-        
-        # PERBAIKAN: Prepare batch insert query
         insert_query = """
             INSERT INTO predictions (
                 user_id, prediction_number, snr, snr_normalized, inputs, 
@@ -159,8 +138,6 @@ def batch_insert_predictions(user_id, predictions_data, batch_size=1000):
                 model_version, created_at
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        
-        # Process in batches
         total_inserted = 0
         for i in range(0, len(predictions_data), batch_size):
             batch = predictions_data[i:i + batch_size]
@@ -168,10 +145,8 @@ def batch_insert_predictions(user_id, predictions_data, batch_size=1000):
             conn.commit()
             total_inserted += len(batch)
             print(f"📊 Inserted batch {i//batch_size + 1}: {total_inserted}/{len(predictions_data)} records")
-        
         print(f"✅ Successfully inserted {total_inserted} predictions")
         return True
-        
     except Exception as e:
         print(f"❌ Error in batch insert: {e}")
         return False
@@ -185,7 +160,6 @@ def get_db_connection():
         if connection_pool is None:
             print("🔄 Initializing connection pool...")
             init_connection_pool()
-        
         if connection_pool:
             conn = connection_pool.get_connection()
             if conn and conn.is_connected():
@@ -202,7 +176,6 @@ def get_db_connection():
         else:
             print("❌ Connection pool is None")
             return None
-            
     except Exception as e:
         print(f"❌ Error getting connection from pool: {e}")
         if conn:
@@ -210,8 +183,6 @@ def get_db_connection():
                 conn.close()
             except:
                 pass
-        
-        # Fallback to direct connection
         try:
             print("🔄 Attempting fallback direct connection...")
             conn = mysql.connector.connect(
@@ -225,23 +196,18 @@ def get_db_connection():
                 charset='utf8mb4',
                 use_unicode=True
             )
-            
             if conn.is_connected():
                 print("✅ Fallback direct connection successful (XAMPP)")
                 return conn
             else:
                 print("❌ Fallback connection failed")
                 return None
-                
         except Exception as fallback_error:
             print(f"❌ Fallback connection also failed: {fallback_error}")
             print("⚠️ Pastikan XAMPP MySQL sudah berjalan dan database 'optipredict_database' sudah dibuat")
             return None
 
 def close_db_connection(conn, cursor=None):
-    """
-    Menutup cursor dan koneksi database dengan benar
-    """
     try:
         if cursor:
             cursor.close()
@@ -259,13 +225,10 @@ def verify_user_exists(user_id):
         conn = get_db_connection()
         if not conn:
             return False
-        
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, email FROM users WHERE id = %s", (user_id,))
         result = cursor.fetchone()
-        
         return result if result else False
-        
     except Exception as e:
         print(f"Error verifying user: {e}")
         return False
@@ -273,81 +236,56 @@ def verify_user_exists(user_id):
         close_db_connection(conn, cursor)
 
 def normalize_headers(df):
-    """
-    Normalisasi header: lowercase, hilangkan semua spasi (depan, belakang, tengah).
-    """
     def clean(col):
         return re.sub(r'\s+', '', str(col)).lower()
     df.columns = [clean(col) for col in df.columns]
     return df
 
 def get_user_id_from_request(request):
-    """
-    Extract user_id dari berbagai sumber request
-    """
     try:
-        # Cek dari form data (untuk file upload)
         if hasattr(request, 'form') and request.form.get('userId'):
             return int(request.form.get('userId'))
-        
-        # Cek dari JSON body (untuk manual prediction)
         if hasattr(request, 'json') and request.json and request.json.get('userId'):
             return int(request.json.get('userId'))
-        
-        # Cek dari query parameters
         if hasattr(request, 'args') and request.args.get('userId'):
             return int(request.args.get('userId'))
-        
         print("⚠️ No user_id found in request")
         return None
-        
     except Exception as e:
         print(f"❌ Error extracting user_id: {e}")
         return None
 
 def get_next_prediction_number(user_id):
-    """
-    Mendapatkan prediction number berikutnya untuk user tertentu
-    """
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
         if not conn:
             return 1
-        
         cursor = conn.cursor()
-        
-        # Cek prediction number tertinggi untuk user ini
         cursor.execute("""
             SELECT COALESCE(MAX(prediction_number), 0) + 1 as next_number
             FROM predictions 
             WHERE user_id = %s
         """, (user_id,))
-        
         result = cursor.fetchone()
         next_number = result[0] if result else 1
-        
         print(f"📊 Next prediction number for user {user_id}: {next_number}")
         return next_number
-        
     except Exception as e:
         print(f"❌ Error getting next prediction number: {e}")
         return 1
     finally:
         close_db_connection(conn, cursor)
 
-# PERBAIKAN: Endpoint batch prediksi file dengan OPTIMASI EKSTREM
 @app.route('/predict-file', methods=['POST'])
 def predict_file():
     try:
+        ensure_model_and_scaler()
         start_total_time = time.time()
         print("📤 Received file upload request")
-        
-        # Ambil user_id dari request
         user_id = get_user_id_from_request(request)
         print(f"📊 Processing file for user_id: {user_id}")
-        
         if 'file' not in request.files:
             print("❌ No file in request")
             return jsonify({
@@ -357,14 +295,10 @@ def predict_file():
                 'processed_rows': 0,
                 'results': []
             }), 400
-
         file = request.files['file']
         filename = file.filename.lower()
         original_filename = file.filename
-
         print(f"📊 Processing file: {original_filename}")
-
-        # Baca file dengan engine yang sesuai
         try:
             read_start = time.time()
             if filename.endswith('.csv'):
@@ -382,10 +316,8 @@ def predict_file():
                     'processed_rows': 0,
                     'results': []
                 }), 400
-            
             read_time = time.time() - read_start
             print(f"📊 File read completed in {read_time:.2f} seconds")
-            
         except Exception as read_error:
             error_msg = f'Error membaca file: {str(read_error)}'
             print(f"❌ {error_msg}")
@@ -396,22 +328,14 @@ def predict_file():
                 'processed_rows': 0,
                 'results': []
             }), 400
-
         print(f"📊 Header asli: {list(df.columns)}")
-        
-        # Normalkan header
         df = normalize_headers(df)
-        
         print(f"📊 Header setelah normalisasi: {list(df.columns)}")
-
-        # Validasi kolom yang diperlukan
         required_columns = ['snr'] + [f'p{i}' for i in range(1, 31)]
         missing_cols = [col for col in required_columns if col not in df.columns]
-        
         if missing_cols:
             error_msg = f'Kolom berikut wajib ada: {missing_cols}'
             print(f"❌ {error_msg}")
-            
             return jsonify({
                 'success': False, 
                 'message': error_msg,
@@ -420,33 +344,19 @@ def predict_file():
                 'processed_rows': 0,
                 'results': []
             }), 400
-
-        # Filter hanya kolom yang diperlukan
         df_filtered = df[required_columns].copy()
-
         print(f"📊 Jumlah baris data: {len(df_filtered)}")
-
-        # PERBAIKAN: Data preprocessing untuk batch processing
         preprocess_start = time.time()
-        
-        # Convert to numeric and handle missing values
         df_filtered = df_filtered.apply(pd.to_numeric, errors='coerce').fillna(0)
-        
-        # Extract SNR values and input matrix
         snr_values = df_filtered['snr'].values
         input_columns = [f'p{i}' for i in range(1, 31)]
         inputs_matrix = df_filtered[input_columns].values
-        
         preprocess_time = time.time() - preprocess_start
         print(f"📊 Data preprocessing completed in {preprocess_time:.2f} seconds")
-
-        # PERBAIKAN: Optimized batch prediction
         prediction_start = time.time()
-        
         predictions, confidences, snr_normalized = predict_batch_optimized(
             model, snr_scaler, snr_values, inputs_matrix
         )
-        
         if predictions is None:
             return jsonify({
                 'success': False,
@@ -455,13 +365,9 @@ def predict_file():
                 'processed_rows': 0,
                 'results': []
             }), 500
-        
         prediction_time = time.time() - prediction_start
         print(f"📊 Batch prediction completed in {prediction_time:.2f} seconds")
-
-        # PERBAIKAN: Format results efficiently
         format_start = time.time()
-        
         results = []
         for idx in range(len(predictions)):
             results.append({
@@ -471,22 +377,15 @@ def predict_file():
                 'snr_raw': float(snr_values[idx]),
                 'snr_normalized': round(float(snr_normalized[idx]), 4)
             })
-        
         format_time = time.time() - format_start
         print(f"📊 Results formatting completed in {format_time:.2f} seconds")
-
-        # PERBAIKAN: Optimized database insertion (optional, can be disabled for speed)
         db_start = time.time()
-        
         if user_id:
             try:
-                # Prepare batch data for database insertion
                 next_prediction_number = get_next_prediction_number(user_id)
-                
                 predictions_data = []
                 for idx in range(len(predictions)):
                     quality_assessment = 'High' if confidences[idx] > 80 else 'Medium' if confidences[idx] > 60 else 'Low'
-                    
                     predictions_data.append((
                         user_id,
                         next_prediction_number + idx,
@@ -500,25 +399,16 @@ def predict_file():
                         '2.0',
                         datetime.now()
                     ))
-                
-                # PERBAIKAN: Batch insert to database
                 batch_insert_success = batch_insert_predictions(user_id, predictions_data)
-                
                 if batch_insert_success:
                     print(f"✅ Successfully saved {len(predictions_data)} predictions to database")
                 else:
                     print("⚠️ Database insertion failed, but predictions completed")
-                    
             except Exception as db_error:
                 print(f"❌ Database error (non-critical): {db_error}")
-        
         db_time = time.time() - db_start
         print(f"📊 Database operations completed in {db_time:.2f} seconds")
-
-        # Calculate total processing time
         total_time = time.time() - start_total_time
-        
-        # Response format
         response_data = {
             'success': True,
             'message': f'Berhasil memproses {len(results)} baris data dari file {original_filename} dalam {total_time:.2f} detik',
@@ -537,22 +427,12 @@ def predict_file():
             },
             'results': results
         }
-        
         print(f"✅ Successfully processed {len(results)} rows for user {user_id} in {total_time:.2f} seconds")
-        print(f"📊 Performance breakdown:")
-        print(f"   - File reading: {read_time:.2f}s")
-        print(f"   - Preprocessing: {preprocess_time:.2f}s") 
-        print(f"   - Batch prediction: {prediction_time:.2f}s")
-        print(f"   - Results formatting: {format_time:.2f}s")
-        print(f"   - Database operations: {db_time:.2f}s")
-        
         return jsonify(response_data), 200
-
     except Exception as e:
         error_msg = str(e)
         print(f"❌ Error dalam predict_file: {error_msg}")
         traceback.print_exc()
-        
         return jsonify({
             'success': False, 
             'message': error_msg,
@@ -561,61 +441,43 @@ def predict_file():
             'results': []
         }), 500
 
-# PERBAIKAN: Single prediction tetap sama tapi dengan optimasi
 @app.route('/predict', methods=['POST'])
 def predict():
     conn = None
     cursor = None
     try:
+        ensure_model_and_scaler()
         data = request.get_json()
-        
         if not data:
             return jsonify({'success': False, 'message': 'Data JSON tidak ditemukan'}), 400
-
         user_id = data.get('userId')
         snr_raw = float(data.get('snr', 0))
         inputs = data.get('inputs', [])
         input_type = data.get('inputType', 'Manual')
-
         print(f"📊 Received prediction request for user: {user_id}")
-
-        # Validasi inputs
         if len(inputs) != 30:
             return jsonify({'success': False, 'message': 'Input harus berisi 30 parameter'}), 400
-
-        # Verifikasi user (opsional)
         if user_id:
             user_info = verify_user_exists(user_id)
             if not user_info:
                 return jsonify({'success': False, 'message': 'User tidak ditemukan'}), 404
-
-        # PERBAIKAN: Optimized single prediction
         snr_array = np.array([[snr_raw]], dtype=np.float32)
         snr_normalized = snr_scaler.transform(snr_array)[0][0]
-
         features = np.array([[snr_normalized] + inputs], dtype=np.float32)
-        
-        # Single prediction
         probabilities = model.predict_proba(features)
         predicted_class = np.argmax(probabilities[0])
         confidence = probabilities[0][predicted_class] * 100
         prediction_label = PREDICTION_LABELS.get(predicted_class, "Unknown")
-
-        # Simpan ke database jika diperlukan
         prediction_id = None
         prediction_number = None
         database_status = "not_saved"
-        
         if user_id:
             try:
                 prediction_number = get_next_prediction_number(user_id)
-                
                 conn = get_db_connection()
                 if conn:
                     cursor = conn.cursor()
-                    
                     quality_assessment = 'High' if confidence > 80 else 'Medium' if confidence > 60 else 'Low'
-                    
                     cursor.execute("""
                         INSERT INTO predictions (
                             user_id, prediction_number, snr, snr_normalized, inputs, 
@@ -635,23 +497,18 @@ def predict():
                         '2.0',
                         datetime.now()
                     ))
-                    
                     prediction_id = cursor.lastrowid
                     conn.commit()
                     database_status = "saved"
-                    
             except Exception as db_error:
                 print(f"❌ Database error: {db_error}")
                 database_status = f"error: {str(db_error)}"
             finally:
                 close_db_connection(conn, cursor)
-
-        # Format parameters
         formatted_parameters = {}
         for i in range(30):
             param_key = f'P{i+1}'
             formatted_parameters[param_key] = float(inputs[i]) if i < len(inputs) else 0.0
-
         return jsonify({
             'success': True,
             'data': {
@@ -677,7 +534,6 @@ def predict():
             },
             'message': 'Prediksi berhasil'
         })
-
     except Exception as e:
         print(f"❌ Error dalam predict: {str(e)}")
         traceback.print_exc()
@@ -685,31 +541,24 @@ def predict():
     finally:
         close_db_connection(conn, cursor)
 
-# PERBAIKAN: TAMBAHAN ENDPOINT HISTORY YANG HILANG
 @app.route('/predictions/<int:user_id>', methods=['GET'])
 def get_history(user_id):
     conn = None
     cursor = None
     try:
         print(f"📊 Getting history for user ID: {user_id}")
-        
-        # Validasi user_id
         if not user_id or user_id <= 0:
             return jsonify({
                 'success': False, 
                 'message': 'Invalid user ID'
             }), 400
-        
         conn = get_db_connection()
         if not conn:
             return jsonify({
                 'success': False, 
                 'message': 'Database connection failed'
             }), 500
-
         cursor = conn.cursor(dictionary=True)
-        
-        # PERBAIKAN: Query dengan error handling yang lebih baik
         cursor.execute("""
             SELECT 
                 id, prediction_number, snr, snr_normalized, inputs,
@@ -720,15 +569,11 @@ def get_history(user_id):
             ORDER BY created_at DESC 
             LIMIT 100
         """, (user_id,))
-        
         results = cursor.fetchall()
         print(f"📊 Found {len(results)} predictions for user {user_id}")
-        
-        # Format data untuk frontend
         formatted_results = []
         for result in results:
             try:
-                # Parse inputs JSON
                 inputs_data = []
                 if result['inputs']:
                     try:
@@ -737,8 +582,6 @@ def get_history(user_id):
                             inputs_data = []
                     except json.JSONDecodeError:
                         inputs_data = []
-                
-                # Format parameters P1-P30
                 parameters = {}
                 for i in range(30):
                     param_key = f'P{i+1}'
@@ -749,7 +592,6 @@ def get_history(user_id):
                             parameters[param_key] = 0.0
                     else:
                         parameters[param_key] = 0.0
-                
                 formatted_result = {
                     'id': result['id'],
                     'prediction_number': result['prediction_number'] or result['id'],
@@ -764,11 +606,9 @@ def get_history(user_id):
                     'created_at': result['created_at'].isoformat() if result['created_at'] else None
                 }
                 formatted_results.append(formatted_result)
-                
             except Exception as format_error:
                 print(f"❌ Error formatting result {result.get('id', 'unknown')}: {format_error}")
                 continue
-        
         return jsonify({
             'success': True,
             'data': formatted_results,
@@ -776,7 +616,6 @@ def get_history(user_id):
             'user_id': user_id,
             'message': f'Found {len(formatted_results)} predictions'
         }), 200
-
     except Exception as e:
         print(f"❌ Error getting history for user {user_id}: {str(e)}")
         traceback.print_exc()
@@ -787,13 +626,10 @@ def get_history(user_id):
     finally:
         close_db_connection(conn, cursor)
 
-# PERBAIKAN: Tambahkan endpoint alternatif untuk history
 @app.route('/history/<int:user_id>', methods=['GET'])
 def get_user_history(user_id):
-    """Alternative endpoint untuk history"""
     return get_history(user_id)
 
-# PERBAIKAN: Endpoint untuk cek apakah ada data history
 @app.route('/predictions/count/<int:user_id>', methods=['GET'])
 def get_predictions_count(user_id):
     conn = None
@@ -802,19 +638,16 @@ def get_predictions_count(user_id):
         conn = get_db_connection()
         if not conn:
             return jsonify({'success': False, 'message': 'Database connection failed'}), 500
-
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM predictions WHERE user_id = %s", (user_id,))
         count_result = cursor.fetchone()
         count = count_result[0] if count_result else 0
-        
         return jsonify({
             'success': True,
             'count': count,
             'user_id': user_id,
             'has_data': count > 0
         }), 200
-
     except Exception as e:
         print(f"❌ Error getting count for user {user_id}: {str(e)}")
         return jsonify({'success': False, 'message': str(e)}), 500
@@ -827,28 +660,21 @@ def delete_all_predictions(user_id):
     cursor = None
     try:
         print(f"🗑️ Deleting all predictions for user: {user_id}")
-        
         conn = get_db_connection()
         if not conn:
             return jsonify({'success': False, 'message': 'Koneksi database gagal'}), 500
-
         cursor = conn.cursor()
-        
         cursor.execute("SELECT COUNT(*) FROM predictions WHERE user_id = %s", (user_id,))
         count_result = cursor.fetchone()
         deleted_count = count_result[0] if count_result else 0
-        
         cursor.execute("DELETE FROM predictions WHERE user_id = %s", (user_id,))
         conn.commit()
-        
         print(f"✅ Deleted {deleted_count} predictions for user {user_id}")
-
         return jsonify({
             'success': True,
             'message': f'Berhasil menghapus {deleted_count} prediksi.',
             'deleted_count': deleted_count
         }), 200
-
     except Exception as e:
         print(f"❌ Error deleting all predictions for user {user_id}: {str(e)}")
         traceback.print_exc()
@@ -877,7 +703,6 @@ def health_check():
         'timestamp': datetime.now().isoformat()
     })
 
-# PERBAIKAN: Tambahkan endpoint untuk test koneksi database
 @app.route('/test-db', methods=['GET'])
 def test_database():
     conn = None
@@ -889,18 +714,13 @@ def test_database():
                 'success': False,
                 'message': 'Failed to connect to database'
             }), 500
-        
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
         result = cursor.fetchone()
-        
-        # Test table existence
         cursor.execute("SHOW TABLES LIKE 'predictions'")
         table_exists = cursor.fetchone()
-        
         cursor.execute("SHOW TABLES LIKE 'users'")
         users_table_exists = cursor.fetchone()
-        
         return jsonify({
             'success': True,
             'message': 'Database connection successful',
@@ -911,7 +731,6 @@ def test_database():
             },
             'test_query': bool(result)
         }), 200
-        
     except Exception as e:
         return jsonify({
             'success': False,
@@ -922,18 +741,14 @@ def test_database():
 
 if __name__ == '__main__':
     print("🚀 Starting OPTIMIZED Flask ML Service with HISTORY ENDPOINTS...")
-    
-    # Initialize connection pool
     pool_initialized = init_connection_pool()
     if not pool_initialized:
         print("❌ Warning: Connection pool initialization failed")
-    
     model_loaded = load_model_and_scaler()
     if model_loaded:
         print("✅ Model dan scaler siap digunakan")
     else:
         print("❌ Model atau scaler gagal dimuat")
-    
     print("📡 OPTIMIZED Server akan berjalan di: http://localhost:5001")
     print("🚀 OPTIMIZATIONS ENABLED:")
     print("   - Vectorized batch predictions")
@@ -950,5 +765,4 @@ if __name__ == '__main__':
     print("   - DELETE /predictions/all/<user_id> (delete all)")
     print("   - GET /health (health check)")
     print("   - GET /test-db (database test)")
-    
     app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)

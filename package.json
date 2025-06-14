@@ -1,0 +1,14 @@
+{
+  "name": "optimis-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start-all": "concurrently \"npm:start-backend\" \"npm:dev-frontend\" \"npm:start-python\"",
+    "start-backend": "npm --prefix backend start",
+    "dev-frontend": "npm --prefix frontend run dev",
+    "start-python": "python3 backend/python/app.py"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
