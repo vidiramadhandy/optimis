@@ -218,11 +218,7 @@ const Results = () => {
         }
 
         console.log('🔍 Verifying token with backend...');
-<<<<<<< HEAD
-        const response = await fetch('http://localhost:5000/api/auth/check', {
-=======
         const response = await fetch('http://20.189.116.138:5000/api/auth/check', {
->>>>>>> 1fb433905a91fb3d09556285bb4c79503494aee0
           method: 'GET',
           headers: {
             'x-access-token': token,
@@ -343,11 +339,7 @@ const Results = () => {
       console.log('🔍 Fetching from database, prediction ID:', predictionId);
       
       // PERBAIKAN: Gunakan endpoint history untuk mendapatkan data
-<<<<<<< HEAD
-      const response = await fetch('http://localhost:5000/api/predictions', {
-=======
       const response = await fetch('http://20.189.116.138:5000/api/predictions', {
->>>>>>> 1fb433905a91fb3d09556285bb4c79503494aee0
         method: 'GET',
         headers: {
           'x-access-token': token,
