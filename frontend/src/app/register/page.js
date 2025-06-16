@@ -30,20 +30,25 @@ const Register = () => {
 
         try {
             const response = await fetch('http://20.189.116.138:5000/api/auth/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation }),
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ name, email, password, password_confirmation: passwordConfirmation }),
             });
 
             const data = await response.json();
 
             if (response.ok) {
-                setSuccessMessage('User successfully registered!');
-                router.push('/login');
+            setSuccessMessage('User successfully registered!');
+            router.push('/login');
+            } else {
+            // Handle specific error for email already taken
+            if (data.message === 'Email already taken') {
+                setErrors({ general: 'Email already registered. Please use a different email.' });
             } else {
                 setErrors(data.error ? { general: data.error } : { general: 'Something went wrong. Please try again.' });
+            }
             }
         } catch (error) {
             console.error('Error during registration:', error);
