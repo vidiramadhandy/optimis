@@ -709,7 +709,7 @@ const AltPage = () => {
                         <strong>Suggestions:</strong>
                         <ul className="list-disc list-inside mt-1">
                           <li>Check your internet connection</li>
-                          <li>Try splitting the file into smaller parts (< 50MB)</li>
+                          <li>Try splitting the file into smaller parts (&lt; 50MB)</li>
                           <li>Ensure the backend server is running properly</li>
                           <li>Wait a few minutes and try again</li>
                         </ul>
