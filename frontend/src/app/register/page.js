@@ -29,11 +29,7 @@ const Register = () => {
         setSuccessMessage('');
 
         try {
-<<<<<<< HEAD
-            const response = await fetch('http://localhost:5000/api/auth/register', {
-=======
             const response = await fetch('http://20.189.116.138:5000/api/auth/register', {
->>>>>>> 1fb433905a91fb3d09556285bb4c79503494aee0
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
