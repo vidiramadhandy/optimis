@@ -49,7 +49,7 @@ app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 app.use(cookieParser());
 
-const FLASK_ML_URL = 'http://localhost:5001';
+const FLASK_ML_URL = 'http://20.189.116.138:5001';
 
 const upload = multer({ 
   dest: 'uploads/',
