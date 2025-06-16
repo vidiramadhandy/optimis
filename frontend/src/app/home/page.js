@@ -925,7 +925,7 @@ export default function Home() {
 {/* Features Section */}
 <section className="mb-16 px-4">
   <p
-    c    className="text-2xl md:text-2xl font-light text-white leading-relaxed text-center max-w-8xl mx-auto"
+        className="text-2xl md:text-2xl font-light text-white leading-relaxed text-center max-w-8xl mx-auto"
     style={{
       fontFamily: "Helvetica",
       lineHeight: '1.2',
