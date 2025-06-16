@@ -1404,7 +1404,7 @@ export default function Home() {
               {/* Image */}
               <div className="mb-8 text-center">
                 <Image
-                  src="/couplerr.png"
+                  src="/coupler.png"
                   alt="Fiber Optic Coupler / Splitter"
                   width={800}
                   height={600}
