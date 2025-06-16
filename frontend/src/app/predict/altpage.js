@@ -271,7 +271,7 @@ const AltPage = () => {
         });
       }, 200);
 
-      const response = await fetch('http://localhost:5000/api/predict-file', {
+      const response = await fetch('http://20.189.116.139:5000/api/predict-file', {
         method: 'POST',
         body: formData,
         headers: {
