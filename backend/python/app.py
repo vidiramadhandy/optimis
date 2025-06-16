@@ -22,8 +22,8 @@ CORS(app)
 DB_CONFIG = {
     'host': 'localhost',
     'port': 3306,
-    'user': 'capstone',
-    'password': 'Adaptive6798',
+    'user': 'admin',
+    'password': 'adaptive6798',
     'database': 'optipredict_database',
     'pool_name': 'mypool',
     'pool_size': 5,
