@@ -30,10 +30,38 @@ const AltPage = () => {
   const [startTime, setStartTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
 
+  // Network and error handling
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [networkError, setNetworkError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [maxRetries] = useState(3);
+
   // For resetting upload area
   const [uploadAreaKey, setUploadAreaKey] = useState(Date.now());
 
   const router = useRouter();
+
+  // Error messages in English
+  const ERROR_MESSAGES = {
+    FILE_TOO_LARGE: (sizeMB) => `File too large (${sizeMB}MB). Maximum file size is 1GB.`,
+    CSV_NOT_SUPPORTED: 'CSV files are not supported. Please upload an Excel file (.xlsx or .xls).',
+    UNSUPPORTED_FORMAT: 'Unsupported file format. Only .xlsx or .xls files are allowed.',
+    FAILED_TO_PROCESS: 'Failed to process file. Please check if the file is corrupted.',
+    FAILED_TO_READ_EXCEL: 'Failed to read Excel file. Please ensure the file is not corrupted.',
+    NO_FILE_SELECTED: 'Please upload a file first.',
+    FLASK_SERVICE_UNAVAILABLE: 'Machine Learning service is not available. Please ensure the Flask server is running on port 5001.',
+    CONNECTION_TIMEOUT: 'Request timeout. The file is too large or the server is not responding within 10 minutes. Try splitting the file into smaller parts.',
+    CONNECTION_FAILED: 'Unable to connect to server. Please check your internet connection and ensure the backend server is running.',
+    PREDICTION_FAILED: 'Prediction failed. Please try again.',
+    NETWORK_OFFLINE: 'No internet connection. Please ensure your internet connection is stable before making predictions.',
+    NETWORK_PREVIOUS_ERROR: 'Internet connection was interrupted previously. Please ensure stable connection before continuing.',
+    ALL_ENDPOINTS_FAILED: 'All server endpoints failed. Please check network connection and ensure backend server is running.',
+    CHUNK_UPLOAD_FAILED: (chunkIndex, totalChunks) => `Failed to upload chunk ${chunkIndex + 1}/${totalChunks}`,
+    LARGE_DATASET_WARNING: (rowCount) => `This file has ${rowCount.toLocaleString()} rows and may take significant time to process.`,
+    HTTP_ERROR: (status, statusText) => `HTTP ${status}: ${statusText}`,
+    AUTHENTICATION_FAILED: 'Authentication failed. Please login again.',
+    SERVER_ERROR: 'Server error occurred. Please try again later.'
+  };
 
   // Timer for elapsed time
   useEffect(() => {
@@ -47,6 +75,29 @@ const AltPage = () => {
     }
     return () => clearInterval(interval);
   }, [loading, startTime]);
+
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      setNetworkError(false);
+      console.log('🟢 Internet connection available');
+    };
+    
+    const handleOffline = () => {
+      setIsOnline(false);
+      setNetworkError(true);
+      console.log('🔴 Internet connection lost');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Authentication check
   useEffect(() => {
@@ -69,10 +120,12 @@ const AltPage = () => {
           setIsAuthenticated(true);
         } else {
           localStorage.removeItem('auth_token');
+          setErrorMsg(ERROR_MESSAGES.AUTHENTICATION_FAILED);
           router.push('/login');
         }
       } catch (error) {
         localStorage.removeItem('auth_token');
+        setErrorMsg(ERROR_MESSAGES.AUTHENTICATION_FAILED);
         router.push('/login');
       } finally {
         setAuthLoading(false);
@@ -82,25 +135,63 @@ const AltPage = () => {
     checkAuth();
   }, [router]);
 
-  // Check Flask service before submit
+  // Check Flask service with multiple endpoints
   const checkFlaskService = async () => {
-    try {
-      const response = await fetch('http://20.189.116.138:5001/health', {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' }
-      });
+    const endpoints = [
+      'http://localhost:5001/health',
+      'http://20.189.116.138:5001/health',
+      'http://20.189.116.139:5001/health'
+    ];
 
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Flask service is available:', result);
-        return true;
-      } else {
-        console.log('❌ Flask service returned error:', response.status);
-        return false;
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔍 Checking Flask service at: ${endpoint}`);
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ Flask service available at ${endpoint}:`, result);
+          return true;
+        } else {
+          console.log(`❌ Flask service at ${endpoint} returned error:`, response.status);
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.log(`⏰ Timeout checking ${endpoint}`);
+        } else {
+          console.log(`❌ Flask service at ${endpoint} not reachable:`, error.message);
+        }
       }
+    }
+
+    return false;
+  };
+
+  // Retry mechanism with exponential backoff
+  const retryWithBackoff = async (fn, retries = maxRetries) => {
+    try {
+      return await fn();
     } catch (error) {
-      console.log('❌ Flask service not reachable:', error.message);
-      return false;
+      if (retries > 0 && (error.name === 'AbortError' || error.message.includes('Failed to fetch'))) {
+        const delay = Math.pow(2, maxRetries - retries) * 1000; // Exponential backoff
+        console.log(`🔄 Retrying in ${delay/1000} seconds... (${maxRetries - retries + 1}/${maxRetries})`);
+        
+        setRetryCount(maxRetries - retries + 1);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        
+        return retryWithBackoff(fn, retries - 1);
+      }
+      throw error;
     }
   };
 
@@ -113,7 +204,7 @@ const AltPage = () => {
 
     // Block CSV files
     if (fileExtension === 'csv') {
-      setErrorMsg('CSV files are not supported. Please upload an Excel file (.xlsx or .xls).');
+      setErrorMsg(ERROR_MESSAGES.CSV_NOT_SUPPORTED);
       setSelectedFile(null);
       setUploadedFileName('');
       setTotalRows(0);
@@ -123,7 +214,7 @@ const AltPage = () => {
     }
 
     if (file.size > 1000 * 1024 * 1024) { // 1GB limit
-      setErrorMsg(`File too large (${fileSizeMB.toFixed(1)}MB). Maximum 1GB.`);
+      setErrorMsg(ERROR_MESSAGES.FILE_TOO_LARGE(fileSizeMB.toFixed(1)));
       return;
     }
 
@@ -142,7 +233,7 @@ const AltPage = () => {
       if (['xlsx', 'xls'].includes(fileExtension)) {
         rowCount = await processExcel(file);
       } else {
-        throw new Error('Unsupported file format. Only .xlsx or .xls files are allowed.');
+        throw new Error(ERROR_MESSAGES.UNSUPPORTED_FORMAT);
       }
 
       setTotalRows(rowCount);
@@ -155,7 +246,7 @@ const AltPage = () => {
       setProcessProgress(100);
 
     } catch (error) {
-      setErrorMsg(error.message || 'Failed to process file');
+      setErrorMsg(error.message || ERROR_MESSAGES.FAILED_TO_PROCESS);
     } finally {
       setIsProcessing(false);
     }
@@ -180,10 +271,10 @@ const AltPage = () => {
           const rowCount = worksheet.rowCount - 1;
           resolve(rowCount);
         } catch (error) {
-          reject(error);
+          reject(new Error(ERROR_MESSAGES.FAILED_TO_READ_EXCEL));
         }
       };
-      reader.onerror = () => reject(new Error('Failed to read Excel file'));
+      reader.onerror = () => reject(new Error(ERROR_MESSAGES.FAILED_TO_READ_EXCEL));
       reader.readAsArrayBuffer(file);
     });
   }, []);
@@ -230,13 +321,26 @@ const AltPage = () => {
     setEstimatedTime(0);
     setElapsedTime(0);
     setStartTime(null);
+    setRetryCount(0);
+    setNetworkError(false);
     setUploadAreaKey(Date.now());
   }, []);
 
-  // Submit prediction
+  // Error recovery function
+  const handleErrorRecovery = useCallback(() => {
+    setErrorMsg('');
+    setLoading(false);
+    setUploadProgress(0);
+    setPredictionProgress(0);
+    setStartTime(null);
+    setElapsedTime(0);
+    setRetryCount(0);
+  }, []);
+
+  // Submit prediction with improved error handling
   const handleConfirmPredict = async () => {
     if (!selectedFile) {
-      setErrorMsg('Please upload a file first.');
+      setErrorMsg(ERROR_MESSAGES.NO_FILE_SELECTED);
       return;
     }
 
@@ -244,7 +348,7 @@ const AltPage = () => {
     const serviceAvailable = await checkFlaskService();
 
     if (!serviceAvailable) {
-      setErrorMsg('Flask ML service is not available. Please ensure Flask is running on port 5001. Check the terminal for Flask startup messages.');
+      setErrorMsg(ERROR_MESSAGES.FLASK_SERVICE_UNAVAILABLE);
       return;
     }
 
@@ -254,6 +358,7 @@ const AltPage = () => {
     setStartTime(Date.now());
     setUploadProgress(0);
     setPredictionProgress(0);
+    setRetryCount(0);
 
     try {
       const formData = new FormData();
@@ -271,17 +376,64 @@ const AltPage = () => {
         });
       }, 200);
 
-      const response = await fetch('http://20.189.116.139:5000/api/predict-file', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          ...(token && { 'x-access-token': token })
-        },
-        credentials: 'include'
-      });
+      // Multiple endpoints with timeout and retry
+      const endpoints = [
+        'http://localhost:5000/api/predict-file',
+        'http://20.189.116.138:5000/api/predict-file',
+        'http://20.189.116.139:5000/api/predict-file'
+      ];
+
+      let response = null;
+      let lastError = null;
+
+      // Try each endpoint with timeout
+      for (let i = 0; i < endpoints.length; i++) {
+        try {
+          console.log(`🔄 Trying endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+            console.log(`⏰ Timeout for endpoint: ${endpoints[i]}`);
+          }, 600000); // 10 minutes timeout for large datasets
+
+          response = await fetch(endpoints[i], {
+            method: 'POST',
+            body: formData,
+            headers: {
+              ...(token && { 'x-access-token': token })
+            },
+            credentials: 'include',
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (response.ok) {
+            console.log(`✅ Successfully connected to: ${endpoints[i]}`);
+            break;
+          } else {
+            console.log(`❌ Endpoint ${endpoints[i]} returned status: ${response.status}`);
+            lastError = new Error(ERROR_MESSAGES.HTTP_ERROR(response.status, response.statusText));
+            response = null;
+          }
+        } catch (fetchError) {
+          console.log(`❌ Failed to connect to ${endpoints[i]}:`, fetchError.message);
+          lastError = fetchError;
+          response = null;
+          
+          if (fetchError.name === 'AbortError') {
+            console.log(`⏰ Request timeout for ${endpoints[i]}`);
+          }
+        }
+      }
 
       clearInterval(uploadInterval);
       setUploadProgress(100);
+
+      if (!response) {
+        throw lastError || new Error(ERROR_MESSAGES.ALL_ENDPOINTS_FAILED);
+      }
 
       // Simulate prediction progress
       const predictionInterval = setInterval(() => {
@@ -294,17 +446,6 @@ const AltPage = () => {
         });
       }, 1000);
 
-      if (!response.ok) {
-        let errorMessage = `HTTP error! status: ${response.status}`;
-        try {
-          const errorResult = await response.json();
-          errorMessage = errorResult.message || errorMessage;
-        } catch (parseError) {
-          errorMessage = response.statusText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
       const result = await response.json();
       clearInterval(predictionInterval);
       setPredictionProgress(100);
@@ -313,10 +454,17 @@ const AltPage = () => {
         setResults(result.results);
         setProcessingStage(`✅ Completed! Processed ${result.results.length.toLocaleString()} rows successfully.`);
       } else {
-        setErrorMsg(result.message || 'Prediction failed.');
+        setErrorMsg(result.message || ERROR_MESSAGES.PREDICTION_FAILED);
       }
     } catch (err) {
-      setErrorMsg(err.message || 'Failed to upload file.');
+      if (err.name === 'AbortError') {
+        setErrorMsg(ERROR_MESSAGES.CONNECTION_TIMEOUT);
+      } else if (err.message.includes('Failed to fetch')) {
+        setErrorMsg(ERROR_MESSAGES.CONNECTION_FAILED);
+      } else {
+        setErrorMsg(err.message || ERROR_MESSAGES.PREDICTION_FAILED);
+      }
+      console.error('Prediction error:', err);
     } finally {
       setLoading(false);
       setStartTime(null);
@@ -389,6 +537,11 @@ const AltPage = () => {
           {estimatedTime > 0 && (
             <div>Estimated: ~{estimatedTime} minutes</div>
           )}
+          {retryCount > 0 && (
+            <div className="text-blue-600 font-medium">
+              🔄 Retry attempt: {retryCount}/{maxRetries}
+            </div>
+          )}
           <div className="text-yellow-600 font-medium">
             ⏳ Large datasets may take 30-60 minutes to process
           </div>
@@ -433,14 +586,30 @@ const AltPage = () => {
           Upload a file with columns: SNR, P1, P2, ..., P30 (format .xlsx or .xls)
         </p>
 
+        {/* Network Status Warning */}
+        {!isOnline && (
+          <div className="mb-4 p-4 bg-red-100 text-red-800 rounded border border-red-300">
+            <h4 className="font-bold mb-2">🔴 No Internet Connection</h4>
+            <p className="text-sm">{ERROR_MESSAGES.NETWORK_OFFLINE}</p>
+          </div>
+        )}
+
+        {networkError && isOnline && (
+          <div className="mb-4 p-4 bg-yellow-100 text-yellow-800 rounded border border-yellow-300">
+            <h4 className="font-bold mb-2">⚠️ Previous Connection Issue</h4>
+            <p className="text-sm">{ERROR_MESSAGES.NETWORK_PREVIOUS_ERROR}</p>
+          </div>
+        )}
+
         {/* Large file warning */}
         <div className="mb-4 p-4 bg-amber-100 text-amber-800 rounded border border-amber-300">
-          <h4 className="font-bold mb-2">⚠️ Disclaimer:</h4>
+          <h4 className="font-bold mb-2">⚠️ Important Notice:</h4>
           <ul className="text-sm space-y-1">
             <li>• Only Excel files (.xlsx, .xls) are supported</li>
             <li>• Files with more than 100K rows may take several minutes to process</li>
             <li>• For optimal performance, split files with more than 100K rows</li>
             <li>• Keep the browser tab open during processing</li>
+            <li>• Ensure stable internet connection for large files</li>
           </ul>
         </div>
 
@@ -460,7 +629,7 @@ const AltPage = () => {
                   <input
                     id="fileInput"
                     type="file"
-                    accept=".csv,.xlsx,.xls"
+                    accept=".xlsx,.xls"
                     onChange={handleFileChange}
                     className="hidden"
                     disabled={isProcessing}
@@ -496,7 +665,7 @@ const AltPage = () => {
                     </div>
                     {totalRows > 100000 && (
                       <div className="mt-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm">
-                        <strong>⚠️ Large Dataset:</strong> This file has {totalRows.toLocaleString()} rows and may take significant time to process.
+                        <strong>⚠️ Large Dataset:</strong> {ERROR_MESSAGES.LARGE_DATASET_WARNING(totalRows)}
                       </div>
                     )}
                   </div>
@@ -521,10 +690,42 @@ const AltPage = () => {
                   </div>
                 )}
 
-                {/* Error message */}
+                {/* Enhanced Error message */}
                 {errorMsg && (
                   <div className="mt-4 p-4 bg-red-100 text-red-700 rounded border border-red-300">
-                    <strong>Error:</strong> {errorMsg}
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <strong>Error:</strong> {errorMsg}
+                      </div>
+                      <button
+                        onClick={handleErrorRecovery}
+                        className="ml-4 px-3 py-1 bg-red-600 text-white text-sm rounded hover:bg-red-700"
+                      >
+                        Close
+                      </button>
+                    </div>
+                    {errorMsg.includes('timeout') && (
+                      <div className="mt-2 text-sm">
+                        <strong>Suggestions:</strong>
+                        <ul className="list-disc list-inside mt-1">
+                          <li>Check your internet connection</li>
+                          <li>Try splitting the file into smaller parts (< 50MB)</li>
+                          <li>Ensure the backend server is running properly</li>
+                          <li>Wait a few minutes and try again</li>
+                        </ul>
+                      </div>
+                    )}
+                    {errorMsg.includes('connection') && (
+                      <div className="mt-2 text-sm">
+                        <strong>Troubleshooting:</strong>
+                        <ul className="list-disc list-inside mt-1">
+                          <li>Verify internet connection is stable</li>
+                          <li>Check if backend server is accessible</li>
+                          <li>Try refreshing the page</li>
+                          <li>Contact administrator if problem persists</li>
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -540,9 +741,17 @@ const AltPage = () => {
                       </button>
                       <button
                         onClick={handleConfirmPredict}
-                        className="btn-gradient text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300"
+                        disabled={!isOnline}
+                        className={`px-6 py-3 rounded-lg font-semibold transition-colors duration-300 ${
+                          isOnline 
+                            ? 'btn-gradient text-white hover:opacity-90' 
+                            : 'bg-gray-400 text-gray-600 cursor-not-allowed'
+                        }`}
                       >
-                        Start Prediction ({totalRows.toLocaleString()} rows)
+                        {isOnline 
+                          ? `Start Prediction (${totalRows.toLocaleString()} rows)`
+                          : 'No Internet Connection'
+                        }
                       </button>
                     </>
                   )}
@@ -584,6 +793,7 @@ const AltPage = () => {
                 <div className="text-sm text-gray-600">Errors</div>
               </div>
             </div>
+
             {/* Sample results table */}
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="min-w-full text-sm border border-gray-300">
@@ -633,17 +843,20 @@ const AltPage = () => {
               </div>
             )}
 
-            <button
-              onClick={handleUploadAgain}
-              className="bg-gray-500 hover:bg-gray-600 cursor-pointer text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300 mt-6"
-            >
-              Upload Different File
-            </button>
-            <button
-              onClick={() => router.push('/history')}
-              className="ml-4 mt-6 bg-blue-800 text-white center rounded-lg py-3 px-3 font-semibold hover:bg-blue-900 cursor-pointer transition-all duration-200">
-              See History
-            </button>
+            <div className="flex gap-4 mt-6">
+              <button
+                onClick={handleUploadAgain}
+                className="bg-gray-500 hover:bg-gray-600 cursor-pointer text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300"
+              >
+                Upload Different File
+              </button>
+              <button
+                onClick={() => router.push('/history')}
+                className="bg-blue-800 text-white rounded-lg py-3 px-6 font-semibold hover:bg-blue-900 cursor-pointer transition-all duration-200"
+              >
+                View History
+              </button>
+            </div>
           </div>
         )}
       </div>
