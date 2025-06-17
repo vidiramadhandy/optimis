@@ -682,6 +682,85 @@ def delete_all_predictions(user_id):
     finally:
         close_db_connection(conn, cursor)
 
+# ENDPOINT BARU: DELETE PREDICTION INDIVIDUAL
+@app.route('/prediction/<int:prediction_id>', methods=['DELETE'])
+def delete_single_prediction(prediction_id):
+    conn = None
+    cursor = None
+    try:
+        user_id = request.args.get('userId')
+        if not user_id:
+            return jsonify({
+                'success': False,
+                'message': 'User ID diperlukan'
+            }), 400
+        
+        user_id = int(user_id)
+        print(f"🗑️ Deleting prediction {prediction_id} for user {user_id}")
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({
+                'success': False, 
+                'message': 'Koneksi database gagal'
+            }), 500
+        
+        cursor = conn.cursor()
+        
+        # Cek apakah prediction exists dan milik user tersebut
+        cursor.execute("""
+            SELECT id, prediction_number, prediction 
+            FROM predictions 
+            WHERE id = %s AND user_id = %s
+        """, (prediction_id, user_id))
+        
+        result = cursor.fetchone()
+        if not result:
+            return jsonify({
+                'success': False,
+                'message': 'Prediction tidak ditemukan atau bukan milik user ini'
+            }), 404
+        
+        # Hapus prediction
+        cursor.execute("""
+            DELETE FROM predictions 
+            WHERE id = %s AND user_id = %s
+        """, (prediction_id, user_id))
+        
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            print(f"✅ Successfully deleted prediction {prediction_id} for user {user_id}")
+            return jsonify({
+                'success': True,
+                'message': f'Prediction #{result[1]} ({result[2]}) berhasil dihapus',
+                'deleted_prediction': {
+                    'id': result[0],
+                    'prediction_number': result[1],
+                    'prediction': result[2]
+                }
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Gagal menghapus prediction'
+            }), 500
+            
+    except ValueError:
+        return jsonify({
+            'success': False,
+            'message': 'Invalid user ID format'
+        }), 400
+    except Exception as e:
+        print(f"❌ Error deleting prediction {prediction_id}: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            'success': False, 
+            'message': f'Error: {str(e)}'
+        }), 500
+    finally:
+        close_db_connection(conn, cursor)
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({
@@ -697,8 +776,10 @@ def health_check():
             '/predictions/<user_id> (GET)',
             '/history/<user_id> (GET)',
             '/predictions/count/<user_id> (GET)',
+            '/prediction/<prediction_id> (DELETE)',  # ENDPOINT BARU
             '/predictions/all/<user_id> (DELETE)',
-            '/health (GET)'
+            '/health (GET)',
+            '/test-db (GET)'
         ],
         'timestamp': datetime.now().isoformat()
     })
@@ -762,6 +843,7 @@ if __name__ == '__main__':
     print("   - GET /predictions/<user_id> (history)")
     print("   - GET /history/<user_id> (alternative history)")
     print("   - GET /predictions/count/<user_id> (count)")
+    print("   - DELETE /prediction/<prediction_id> (delete single)")  # ENDPOINT BARU
     print("   - DELETE /predictions/all/<user_id> (delete all)")
     print("   - GET /health (health check)")
     print("   - GET /test-db (database test)")
