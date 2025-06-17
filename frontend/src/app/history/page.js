@@ -173,7 +173,7 @@ const History = () => {
     try {
       setDeleteLoading(prev => ({ ...prev, [predictionId]: true }));
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://localhost:5000/api/prediction/${predictionId}`, {
+      const response = await fetch(`http://20.189.116.138:5000/api/prediction/${predictionId}`, {
         method: 'DELETE',
         headers: {
           'x-access-token': token,
