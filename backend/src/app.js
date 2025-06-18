@@ -40,6 +40,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// CORS Middleware
 app.use(cors({
   origin: 'http://20.189.116.138:3000',
   credentials: true,
