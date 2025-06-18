@@ -77,6 +77,10 @@ const upload = multer({
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
+app.get('/', (req, res) => {
+  res.redirect('/login')
+})
+
 // Endpoint untuk cek autentikasi
 app.get('/api/auth/check', async (req, res) => {
   try {
