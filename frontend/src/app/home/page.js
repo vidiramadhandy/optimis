@@ -141,7 +141,7 @@ export default function Home() {
               <div className="bg-white bg-opacity-95 rounded-2xl p-6 md:p-8 shadow-2xl">
                 <div className="relative overflow-hidden rounded-xl">
                   <Image
-                    src="http://optipredict.my.id/images/topology.jpg"
+                    src="/topology.jpg"
                     alt="Topologi Dasar OptiPredict"
                     width={1200}
                     height={700}
@@ -966,7 +966,7 @@ export default function Home() {
               {/* OTDR Image */}
               <div className="mb-8 text-center">
                 <Image
-                  src="http://optipredict.my.id/images/otdr-device.png"
+                  src="/otdr-device.png"
                   alt="OTDR Device"
                   width={800}
                   height={600}
@@ -1041,7 +1041,7 @@ export default function Home() {
             <div className="p-8 text-gray-800">
               <div className="mb-8 text-center">
                 <Image
-                  src="http://optipredict.my.id/images/apc-connector.png"
+                  src="/apc connector.png"
                   alt="APC Connector"
                   width={800}
                   height={600}
@@ -1141,7 +1141,7 @@ export default function Home() {
             <div className="p-8 text-gray-800">
               <div className="mb-8 text-center">
                 <Image
-                  src="http://optipredict.my.id/images/fiber-patch-cable.png"
+                  src="/fiber patch cable.png"
                   alt="Fiber Patch Cable"
                   width={800}
                   height={600}
@@ -1278,7 +1278,7 @@ export default function Home() {
             <div className="p-8 text-gray-800">
               <div className="mb-8">
                 <Image
-                  src="http://optipredict.my.id/images/topology.jpg"
+                  src="/topology.jpg"
                   alt="Topologi Dasar OptiPredict"
                   width={1200}
                   height={700}
@@ -1311,7 +1311,7 @@ export default function Home() {
         {/* Image */}
         <div className="mb-8 text-center">
           <Image
-            src="http://optipredict.my.id/images/pc-connector.png"
+            src="/pc connector.png"
             alt="PC Connector"
             width={800}
             height={600}
@@ -1404,7 +1404,7 @@ export default function Home() {
               {/* Image */}
               <div className="mb-8 text-center">
                 <Image
-                  src="http://optipredict.my.id/images/coupler.png"
+                  src="/coupler.png"
                   alt="Fiber Optic Coupler / Splitter"
                   width={800}
                   height={600}
@@ -1510,7 +1510,7 @@ export default function Home() {
             {/* Image */}
             <div className="mb-8 text-center">
               <Image
-                src="http://optipredict.my.id/images/fiber-optic.png"
+                src="/fiber optic.png"
                 alt="Fiber Optic Cable"
                 width={800}
                 height={600}
@@ -1593,7 +1593,7 @@ export default function Home() {
         {/* Image */}
         <div className="mb-8 text-center">
           <Image
-            src="http://optipredict.my.id/images/sfp.png"
+            src="/sfp.png"
             alt="SFP+ Module"
             width={800}
             height={600}
@@ -1697,7 +1697,7 @@ export default function Home() {
               {/* Image */}
               <div className="mb-8 text-center">
                 <Image
-                  src="http://optipredict.my.id/images/voa-optic.png"
+                  src="/voa-optic.png"
                   alt="Variable Optical Attenuator (VOA)"
                   width={800}
                   height={600}
@@ -1706,7 +1706,7 @@ export default function Home() {
               </div>
               <div className="space-y-6">
                 {/* Explanation */}
-                <div>
+                 <div>
                   <h4 className="text-2xl font-semibold text-gray-800 mb-4">
                     What is Variable Optical Attenuator (VOA)?
                     </h4>
@@ -1790,7 +1790,7 @@ export default function Home() {
               {/* Image */}
               <div className="mb-8 text-center">
                 <Image
-                  src="http://optipredict.my.id/images/reflector.png"
+                  src="/reflector.png"
                   alt="Fiber Optic Reflector"
                   width={800}
                   height={600}

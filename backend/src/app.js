@@ -14,6 +14,8 @@ const fs = require('fs');
 
 const app = express();
 
+app.use(express.static('public'));
+
 // Timeout for file uploads
 app.use((req, res, next) => {
   const contentLength = req.get('content-length');
