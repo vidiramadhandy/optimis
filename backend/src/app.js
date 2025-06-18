@@ -39,7 +39,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// PERBAIKAN: CORS Middleware yang lebih robust untuk domain custom
+// PERBAIKAN: CORS Middleware yang mendukung HTTP dan HTTPS untuk domain custom
 const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -49,6 +49,8 @@ const corsOptions = {
       ? [
           'https://optipredict.my.id',
           'https://www.optipredict.my.id',
+          'http://optipredict.my.id',    // PERBAIKAN: Support HTTP
+          'http://www.optipredict.my.id', // PERBAIKAN: Support HTTP
           'http://20.189.116.138:3000'
         ]
       : [
@@ -61,7 +63,7 @@ const corsOptions = {
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
-      callback(null, true); // Allow all origins for now, but log blocked ones
+      callback(null, true); // Allow all origins for debugging, but log blocked ones
     }
   },
   credentials: true, // PENTING: Untuk cookie cross-origin
@@ -121,7 +123,7 @@ const upload = multer({
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
-// PERBAIKAN: Endpoint untuk cek autentikasi dengan token refresh
+// PERBAIKAN: Enhanced auth check endpoint dengan token refresh
 app.get('/api/auth/check', async (req, res) => {
   try {
     const token = req.headers['x-access-token'] || 
@@ -162,17 +164,17 @@ app.get('/api/auth/check', async (req, res) => {
       
       let newToken = token;
       if (timeUntilExpiry < oneHour) {
-        newToken = jwt.sign({ id: user.id }, config.jwtSecret, {
+        newToken = jwt.sign({ id: user.id, email: user.email }, config.jwtSecret, {
           expiresIn: config.jwtExpire || '24h'
         });
         
-        // Set new cookie with proper domain configuration
+        // PERBAIKAN: Set new cookie dengan konfigurasi domain yang tepat
         const cookieOptions = {
           httpOnly: true,
           maxAge: 24 * 60 * 60 * 1000,
           path: '/',
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+          secure: false, // PERBAIKAN: Set false untuk HTTP
+          sameSite: 'lax' // PERBAIKAN: Gunakan 'lax' untuk HTTP
         };
         
         if (process.env.NODE_ENV === 'production') {
@@ -196,6 +198,22 @@ app.get('/api/auth/check', async (req, res) => {
       
     } catch (jwtError) {
       console.log('❌ JWT verification failed:', jwtError.message);
+      
+      // PERBAIKAN: Clear invalid cookie
+      const cookieOptions = {
+        httpOnly: true,
+        path: '/',
+        secure: false,
+        sameSite: 'lax'
+      };
+      
+      if (process.env.NODE_ENV === 'production') {
+        cookieOptions.domain = '.my.id';
+      }
+      
+      cookieOptions.expires = new Date(0);
+      res.clearCookie('token', cookieOptions);
+      
       return res.status(401).json({ 
         authenticated: false, 
         message: 'Token tidak valid atau expired' 
@@ -558,7 +576,7 @@ app.use((err, req, res, next) => {
       message: 'CORS policy violation',
       origin: req.get('origin'),
       allowedOrigins: process.env.NODE_ENV === 'production' 
-        ? ['https://optipredict.my.id', 'https://www.optipredict.my.id']
+        ? ['https://optipredict.my.id', 'http://optipredict.my.id']
         : ['http://localhost:3000', 'http://127.0.0.1:3000']
     });
   }
@@ -589,7 +607,7 @@ app.get('/health', (req, res) => {
     host: req.get('host'),
     cookies: Object.keys(req.cookies || {}),
     corsOrigins: process.env.NODE_ENV === 'production' 
-      ? ['https://optipredict.my.id', 'https://www.optipredict.my.id']
+      ? ['https://optipredict.my.id', 'http://optipredict.my.id']
       : ['http://localhost:3000', 'http://127.0.0.1:3000']
   });
 });
@@ -599,7 +617,7 @@ const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Express server berjalan di http://localhost:${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔐 CORS Origins: ${process.env.NODE_ENV === 'production' ? 'optipredict.my.id' : 'localhost:3000'}`);
+  console.log(`🔐 CORS Origins: ${process.env.NODE_ENV === 'production' ? 'optipredict.my.id (HTTP/HTTPS)' : 'localhost:3000'}`);
   console.log(`⏰ Extended timeout untuk file besar: 4 jam maksimal`);
   console.log(`📊 Support untuk file hingga 500MB`);
   console.log(`🔐 Menangani autentikasi dan routing ke ML service`);

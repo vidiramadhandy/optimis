@@ -10,8 +10,8 @@ function getCookieOptions() {
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
     path: '/',
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax'
+    secure: false, // PERBAIKAN: Set false untuk mendukung HTTP
+    sameSite: 'lax' // PERBAIKAN: Gunakan 'lax' untuk HTTP
   };
   
   // PERBAIKAN: Set domain untuk production
@@ -248,50 +248,6 @@ const authRateLimit = (req, res, next) => {
   next();
 };
 
-// PERBAIKAN: Middleware untuk admin-only routes
-const requireAdmin = async (req, res, next) => {
-  try {
-    // Pastikan user sudah terverifikasi
-    if (!req.userId) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required'
-      });
-    }
-    
-    // Cek role admin dari database (implementasi sesuai kebutuhan)
-    // Untuk sementara, asumsi semua authenticated user adalah admin
-    console.log('👑 Admin access granted for user:', req.userId);
-    next();
-  } catch (error) {
-    console.error('❌ Error in admin check:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error checking admin privileges'
-    });
-  }
-};
-
-// PERBAIKAN: Middleware untuk cleanup expired rate limit entries
-const cleanupRateLimit = () => {
-  const now = Date.now();
-  let cleanedCount = 0;
-  
-  for (const [ip, data] of rateLimitMap.entries()) {
-    if (now > data.resetTime) {
-      rateLimitMap.delete(ip);
-      cleanedCount++;
-    }
-  }
-  
-  if (cleanedCount > 0) {
-    console.log(`🧹 Cleaned up ${cleanedCount} expired rate limit entries`);
-  }
-};
-
-// Jalankan cleanup setiap 30 menit
-setInterval(cleanupRateLimit, 30 * 60 * 1000);
-
 // PERBAIKAN: Debug middleware untuk development
 const debugAuth = (req, res, next) => {
   if (process.env.NODE_ENV === 'development') {
@@ -321,7 +277,7 @@ const handleAuthCors = (req, res, next) => {
     
     const origin = req.get('origin');
     const allowedOrigins = process.env.NODE_ENV === 'production' 
-      ? ['https://optipredict.my.id', 'https://www.optipredict.my.id']
+      ? ['https://optipredict.my.id', 'http://optipredict.my.id']
       : ['http://localhost:3000', 'http://127.0.0.1:3000'];
     
     if (allowedOrigins.includes(origin)) {
@@ -333,11 +289,30 @@ const handleAuthCors = (req, res, next) => {
   next();
 };
 
+// PERBAIKAN: Middleware untuk cleanup expired rate limit entries
+const cleanupRateLimit = () => {
+  const now = Date.now();
+  let cleanedCount = 0;
+  
+  for (const [ip, data] of rateLimitMap.entries()) {
+    if (now > data.resetTime) {
+      rateLimitMap.delete(ip);
+      cleanedCount++;
+    }
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`🧹 Cleaned up ${cleanedCount} expired rate limit entries`);
+  }
+};
+
+// Jalankan cleanup setiap 30 menit
+setInterval(cleanupRateLimit, 30 * 60 * 1000);
+
 module.exports = { 
   verifyToken,
   optionalAuth,
   authRateLimit,
-  requireAdmin,
   debugAuth,
   handleAuthCors,
   getCookieOptions // Export helper function
