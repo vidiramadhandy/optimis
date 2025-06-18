@@ -7,7 +7,6 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // Konfigurasi untuk API calls ke Express backend
   async rewrites() {
     return [
       {
@@ -18,4 +17,4 @@ const nextConfig = {
   }
 }
 
-module.exports = nextConfig
+export default nextConfig  // ✅ BENAR untuk .mjs
