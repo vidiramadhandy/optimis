@@ -4,10 +4,77 @@ const bcrypt = require('bcryptjs');
 const db = require('../db');
 const config = require('../config');
 
+// PERBAIKAN: Helper function untuk cookie options yang konsisten
+function getCookieOptions() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  
+  const options = {
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    path: '/',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax'
+  };
+  
+  // PERBAIKAN: Set domain untuk production
+  if (isProduction) {
+    options.domain = '.my.id';
+  }
+  
+  return options;
+}
+
+// PERBAIKAN: Enhanced logging function
+const logAuthAttempt = (req, success, message, userId = null) => {
+  const logData = {
+    timestamp: new Date().toISOString(),
+    method: req.method,
+    path: req.path,
+    origin: req.get('origin'),
+    ip: req.ip || req.connection.remoteAddress,
+    success,
+    message,
+    userId
+  };
+  
+  if (success) {
+    console.log('✅ Auth Success:', JSON.stringify(logData, null, 2));
+  } else {
+    console.log('❌ Auth Failed:', JSON.stringify(logData, null, 2));
+  }
+};
+
 // Register user
 async function register(req, res) {
   try {
     const { name, email, password } = req.body;
+    
+    console.log('📝 Registration attempt for:', email);
+    
+    // Validation
+    if (!name || !email || !password) {
+      logAuthAttempt(req, false, 'Missing required fields');
+      return res.status(400).json({ 
+        message: 'Nama, email, dan password wajib diisi' 
+      });
+    }
+    
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      logAuthAttempt(req, false, 'Invalid email format');
+      return res.status(400).json({ 
+        message: 'Format email tidak valid' 
+      });
+    }
+    
+    // Password strength validation
+    if (password.length < 6) {
+      logAuthAttempt(req, false, 'Password too short');
+      return res.status(400).json({ 
+        message: 'Password minimal 6 karakter' 
+      });
+    }
     
     // Check if the email is already in use
     const [existingUsers] = await db.query(
@@ -16,29 +83,48 @@ async function register(req, res) {
     );
     
     if (existingUsers.length > 0) {
-      return res.status(400).json({ message: 'Email already taken' });
+      logAuthAttempt(req, false, 'Email already exists');
+      return res.status(400).json({ message: 'Email sudah terdaftar' });
     }
     
     // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12); // Increased salt rounds
     
     // Insert new user
-    await db.query(
-      'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
+    const [result] = await db.query(
+      'INSERT INTO users (name, email, password, created_at) VALUES (?, ?, ?, NOW())',
       [name, email, hashedPassword]
     );
     
-    res.status(201).json({ message: 'Registration successful' });
+    logAuthAttempt(req, true, 'Registration successful', result.insertId);
+    console.log('✅ User registered successfully:', { id: result.insertId, email });
+    
+    res.status(201).json({ 
+      message: 'Registrasi berhasil',
+      userId: result.insertId
+    });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error during registration' });
+    console.error('❌ Registration error:', error);
+    logAuthAttempt(req, false, `Registration error: ${error.message}`);
+    res.status(500).json({ message: 'Error saat registrasi' });
   }
 }
 
-// Login user
+// PERBAIKAN: Login user dengan cookie configuration yang tepat
 async function login(req, res) {
   try {
     const { email, password } = req.body;
+    
+    console.log('🔐 Login attempt for:', email);
+    console.log('Request origin:', req.get('origin'));
+    
+    // Validation
+    if (!email || !password) {
+      logAuthAttempt(req, false, 'Missing email or password');
+      return res.status(400).json({ 
+        message: 'Email dan password wajib diisi' 
+      });
+    }
     
     // Find user by email
     const [users] = await db.query(
@@ -47,7 +133,8 @@ async function login(req, res) {
     );
     
     if (users.length === 0) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      logAuthAttempt(req, false, 'User not found');
+      return res.status(401).json({ message: 'Email atau password salah' });
     }
     
     const user = users[0];
@@ -56,39 +143,77 @@ async function login(req, res) {
     const isPasswordValid = await bcrypt.compare(password, user.password);
     
     if (!isPasswordValid) {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      logAuthAttempt(req, false, 'Invalid password', user.id);
+      return res.status(401).json({ message: 'Email atau password salah' });
     }
     
     // Create token
-    const token = jwt.sign({ id: user.id }, config.jwtSecret, {
-      expiresIn: config.jwtExpire || '24h'
-    });
+    const token = jwt.sign(
+      { 
+        id: user.id,
+        email: user.email 
+      }, 
+      config.jwtSecret, 
+      {
+        expiresIn: config.jwtExpire || '24h'
+      }
+    );
     
-    // Set token in cookie
-    res.cookie('token', token, {
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000 // 1 day
-    });
+    // PERBAIKAN: Set cookie dengan options yang tepat untuk domain custom
+    const cookieOptions = getCookieOptions();
+    res.cookie('token', token, cookieOptions);
+    
+    // Update last login
+    await db.query(
+      'UPDATE users SET last_login = NOW() WHERE id = ?',
+      [user.id]
+    );
+    
+    logAuthAttempt(req, true, 'Login successful', user.id);
+    console.log('✅ Login successful for:', email);
+    console.log('🍪 Cookie set with options:', cookieOptions);
     
     res.json({
       id: user.id,
       name: user.name,
       email: user.email,
-      token
+      token,
+      message: 'Login berhasil'
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error during login' });
+    console.error('❌ Login error:', error);
+    logAuthAttempt(req, false, `Login error: ${error.message}`);
+    res.status(500).json({ message: 'Error saat login' });
   }
 }
 
-// Logout user
+// PERBAIKAN: Logout user dengan cookie clearing yang tepat
 function logout(req, res) {
-  res.clearCookie('token');
-  res.json({ message: 'Logged out successfully' });
+  try {
+    console.log('🚪 Logout request received');
+    console.log('Request origin:', req.get('origin'));
+    
+    // PERBAIKAN: Clear cookie dengan options yang sama
+    const cookieOptions = getCookieOptions();
+    delete cookieOptions.maxAge;
+    cookieOptions.expires = new Date(0);
+    
+    res.clearCookie('token', cookieOptions);
+    
+    console.log('✅ User logged out successfully');
+    console.log('🗑️ Cookie cleared with options:', cookieOptions);
+    
+    res.json({ 
+      message: 'Logout berhasil',
+      success: true
+    });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ message: 'Error saat logout' });
+  }
 }
 
-// Check authentication status - PERBAIKAN UTAMA
+// PERBAIKAN: Check authentication status dengan token refresh
 async function checkAuth(req, res) {
   try {
     const token = req.headers['x-access-token'] || 
@@ -96,7 +221,9 @@ async function checkAuth(req, res) {
                   (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
     
     console.log('🔍 Auth check request received');
+    console.log('Request origin:', req.get('origin'));
     console.log('Token exists:', !!token);
+    console.log('Cookies received:', Object.keys(req.cookies || {}));
     
     if (!token) {
       console.log('❌ No token found in auth check');
@@ -111,7 +238,10 @@ async function checkAuth(req, res) {
       console.log('✅ Token decoded successfully:', { userId: decoded.id });
       
       // Cek apakah user masih ada di database
-      const [users] = await db.query('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
+      const [users] = await db.query(
+        'SELECT id, name, email, created_at, last_login FROM users WHERE id = ?', 
+        [decoded.id]
+      );
       
       if (users.length === 0) {
         console.log('❌ User not found in database:', decoded.id);
@@ -124,19 +254,53 @@ async function checkAuth(req, res) {
       const user = users[0];
       console.log('✅ User authenticated:', { id: user.id, name: user.name });
       
-      // PERBAIKAN: Return format yang konsisten
+      // PERBAIKAN: Token refresh mechanism
+      const tokenExp = decoded.exp * 1000;
+      const now = Date.now();
+      const timeUntilExpiry = tokenExp - now;
+      const oneHour = 60 * 60 * 1000;
+      
+      let newToken = token;
+      if (timeUntilExpiry < oneHour) {
+        newToken = jwt.sign(
+          { 
+            id: user.id,
+            email: user.email 
+          }, 
+          config.jwtSecret, 
+          {
+            expiresIn: config.jwtExpire || '24h'
+          }
+        );
+        
+        const cookieOptions = getCookieOptions();
+        res.cookie('token', newToken, cookieOptions);
+        console.log('🔄 Token refreshed for user:', user.id);
+      }
+      
+      // PERBAIKAN: Return format yang konsisten dengan token refresh
       res.json({ 
         authenticated: true, 
         user: {
           id: user.id,
           name: user.name,
-          email: user.email
+          email: user.email,
+          created_at: user.created_at,
+          last_login: user.last_login
         },
+        token: newToken,
         message: 'User terautentikasi'
       });
       
     } catch (jwtError) {
       console.log('❌ JWT verification failed:', jwtError.message);
+      
+      // PERBAIKAN: Clear invalid cookie
+      const cookieOptions = getCookieOptions();
+      delete cookieOptions.maxAge;
+      cookieOptions.expires = new Date(0);
+      res.clearCookie('token', cookieOptions);
+      
       return res.status(401).json({ 
         authenticated: false, 
         message: 'Token tidak valid atau expired' 
@@ -152,7 +316,7 @@ async function checkAuth(req, res) {
   }
 }
 
-// Get user data from token
+// PERBAIKAN: Get user data from token dengan enhanced validation
 async function getUserData(req, res) {
   try {
     const token = req.headers['x-access-token'] || 
@@ -160,17 +324,24 @@ async function getUserData(req, res) {
                   (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
     
     if (!token) {
-      return res.status(401).json({ message: 'Token is required for authentication' });
+      return res.status(401).json({ 
+        message: 'Token diperlukan untuk autentikasi' 
+      });
     }
 
     // Verify the token
     const decoded = jwt.verify(token, config.jwtSecret);
 
     // Get user data based on the decoded ID
-    const [users] = await db.query('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
+    const [users] = await db.query(
+      'SELECT id, name, email, created_at, last_login FROM users WHERE id = ?', 
+      [decoded.id]
+    );
 
     if (users.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ 
+        message: 'User tidak ditemukan' 
+      });
     }
 
     const user = users[0];
@@ -180,18 +351,86 @@ async function getUserData(req, res) {
       id: user.id,
       name: user.name,
       email: user.email,
+      created_at: user.created_at,
+      last_login: user.last_login
     });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Error fetching user data' });
+    console.error('❌ Get user data error:', error);
+    if (error.name === 'JsonWebTokenError') {
+      res.status(401).json({ message: 'Token tidak valid' });
+    } else if (error.name === 'TokenExpiredError') {
+      res.status(401).json({ message: 'Token expired' });
+    } else {
+      res.status(500).json({ message: 'Error mengambil data user' });
+    }
   }
 }
 
-// PENTING: Ekspor semua fungsi yang digunakan di routes
+// PERBAIKAN: Change password function
+async function changePassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.userId; // Dari middleware verifyToken
+    
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ 
+        message: 'Password lama dan baru wajib diisi' 
+      });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ 
+        message: 'Password baru minimal 6 karakter' 
+      });
+    }
+    
+    // Get current user
+    const [users] = await db.query(
+      'SELECT * FROM users WHERE id = ?',
+      [userId]
+    );
+    
+    if (users.length === 0) {
+      return res.status(404).json({ message: 'User tidak ditemukan' });
+    }
+    
+    const user = users[0];
+    
+    // Verify current password
+    const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+    
+    if (!isCurrentPasswordValid) {
+      return res.status(401).json({ message: 'Password lama salah' });
+    }
+    
+    // Hash new password
+    const hashedNewPassword = await bcrypt.hash(newPassword, 12);
+    
+    // Update password
+    await db.query(
+      'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
+      [hashedNewPassword, userId]
+    );
+    
+    console.log('✅ Password changed for user:', userId);
+    
+    res.json({ 
+      message: 'Password berhasil diubah',
+      success: true
+    });
+  } catch (error) {
+    console.error('❌ Change password error:', error);
+    res.status(500).json({ message: 'Error mengubah password' });
+  }
+}
+
+// PERBAIKAN: Ekspor semua fungsi yang digunakan di routes
 module.exports = {
   register,
   login,
   logout,
-  checkAuth, // Pastikan fungsi ini diekspor
+  checkAuth,
   getUserData,
+  changePassword,
+  getCookieOptions // Export helper function
 };
