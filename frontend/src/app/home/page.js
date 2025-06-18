@@ -1041,7 +1041,7 @@ export default function Home() {
             <div className="p-8 text-gray-800">
               <div className="mb-8 text-center">
                 <Image
-                  src="/apc connector.png"
+                  src="/apc-connector.png"
                   alt="APC Connector"
                   width={800}
                   height={600}
@@ -1141,7 +1141,7 @@ export default function Home() {
             <div className="p-8 text-gray-800">
               <div className="mb-8 text-center">
                 <Image
-                  src="/fiber patch cable.png"
+                  src="/fiber-patch-cable.png"
                   alt="Fiber Patch Cable"
                   width={800}
                   height={600}
@@ -1311,7 +1311,7 @@ export default function Home() {
         {/* Image */}
         <div className="mb-8 text-center">
           <Image
-            src="/pc connector.png"
+            src="/pc-connector.png"
             alt="PC Connector"
             width={800}
             height={600}
@@ -1510,7 +1510,7 @@ export default function Home() {
             {/* Image */}
             <div className="mb-8 text-center">
               <Image
-                src="/fiber optic.png"
+                src="/fiber-optic.png"
                 alt="Fiber Optic Cable"
                 width={800}
                 height={600}

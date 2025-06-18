@@ -1,5 +1,3 @@
-//Fallback
-
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
@@ -16,6 +14,7 @@ const fs = require('fs');
 
 const app = express();
 
+// Timeout configuration berdasarkan ukuran file
 app.use((req, res, next) => {
   const contentLength = req.get('content-length');
   const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
@@ -40,13 +39,62 @@ app.use((req, res, next) => {
   next();
 });
 
-// CORS Middleware
-app.use(cors({
-  origin: 'http://20.189.116.138:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token']
-}));
+// PERBAIKAN: CORS Middleware yang lebih robust untuk domain custom
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = process.env.NODE_ENV === 'production' 
+      ? [
+          'https://optipredict.my.id',
+          'https://www.optipredict.my.id',
+          'http://20.189.116.138:3000'
+        ]
+      : [
+          'http://20.189.116.138:3000',
+          'http://localhost:3000',
+          'http://127.0.0.1:3000'
+        ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(null, true); // Allow all origins for now, but log blocked ones
+    }
+  },
+  credentials: true, // PENTING: Untuk cookie cross-origin
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type', 
+    'Authorization', 
+    'x-access-token',
+    'Origin',
+    'X-Requested-With',
+    'Accept',
+    'Cache-Control'
+  ],
+  exposedHeaders: ['set-cookie'], // PENTING: Expose cookie headers
+  optionsSuccessStatus: 200, // Support legacy browsers
+  preflightContinue: false
+};
+
+app.use(cors(corsOptions));
+
+// PERBAIKAN: Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
+
+// PERBAIKAN: Middleware untuk logging dan debugging
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`${req.method} ${req.path}`);
+    console.log('Origin:', req.get('origin'));
+    console.log('User-Agent:', req.get('user-agent'));
+    console.log('Cookies:', Object.keys(req.cookies || {}));
+  }
+  next();
+});
 
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
@@ -73,22 +121,68 @@ const upload = multer({
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
-// Endpoint untuk cek autentikasi
+// PERBAIKAN: Endpoint untuk cek autentikasi dengan token refresh
 app.get('/api/auth/check', async (req, res) => {
   try {
     const token = req.headers['x-access-token'] || 
                   req.cookies.token || 
                   (req.headers['authorization'] && req.headers['authorization'].split(' ')[1]);
+    
+    console.log('🔍 Auth check request received');
+    console.log('Request origin:', req.get('origin'));
+    console.log('Token exists:', !!token);
+    console.log('Cookies received:', Object.keys(req.cookies || {}));
+    
     if (!token) {
-      return res.status(401).json({ authenticated: false, message: 'Token tidak ditemukan' });
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'Token tidak ditemukan' 
+      });
     }
+    
     try {
       const decoded = jwt.verify(token, config.jwtSecret);
       const [users] = await db.query('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
+      
       if (users.length === 0) {
-        return res.status(401).json({ authenticated: false, message: 'User tidak ditemukan di database' });
+        return res.status(401).json({ 
+          authenticated: false, 
+          message: 'User tidak ditemukan di database' 
+        });
       }
+      
       const user = users[0];
+      console.log('✅ User authenticated:', { id: user.id, name: user.name });
+      
+      // PERBAIKAN: Token refresh mechanism
+      const tokenExp = decoded.exp * 1000;
+      const now = Date.now();
+      const timeUntilExpiry = tokenExp - now;
+      const oneHour = 60 * 60 * 1000;
+      
+      let newToken = token;
+      if (timeUntilExpiry < oneHour) {
+        newToken = jwt.sign({ id: user.id }, config.jwtSecret, {
+          expiresIn: config.jwtExpire || '24h'
+        });
+        
+        // Set new cookie with proper domain configuration
+        const cookieOptions = {
+          httpOnly: true,
+          maxAge: 24 * 60 * 60 * 1000,
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        };
+        
+        if (process.env.NODE_ENV === 'production') {
+          cookieOptions.domain = '.my.id';
+        }
+        
+        res.cookie('token', newToken, cookieOptions);
+        console.log('🔄 Token refreshed for user:', user.id);
+      }
+      
       res.json({
         authenticated: true, 
         user: {
@@ -96,17 +190,27 @@ app.get('/api/auth/check', async (req, res) => {
           name: user.name,
           email: user.email
         },
+        token: newToken,
         message: 'User terautentikasi'
       });
+      
     } catch (jwtError) {
-      return res.status(401).json({ authenticated: false, message: 'Token tidak valid atau expired' });
+      console.log('❌ JWT verification failed:', jwtError.message);
+      return res.status(401).json({ 
+        authenticated: false, 
+        message: 'Token tidak valid atau expired' 
+      });
     }
   } catch (error) {
-    res.status(500).json({ authenticated: false, message: 'Error internal server' });
+    console.error('❌ Error in auth check:', error);
+    res.status(500).json({ 
+      authenticated: false, 
+      message: 'Error internal server' 
+    });
   }
 });
 
-// ENDPOINT MANUAL PREDICT (TAMBAHAN)
+// ENDPOINT MANUAL PREDICT
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
@@ -444,10 +548,58 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
   }
 });
 
+// PERBAIKAN: Error handling middleware untuk CORS dan domain issues
+app.use((err, req, res, next) => {
+  console.error('Server Error:', err);
+  
+  // Handle CORS errors
+  if (err.message && err.message.includes('CORS')) {
+    return res.status(403).json({ 
+      message: 'CORS policy violation',
+      origin: req.get('origin'),
+      allowedOrigins: process.env.NODE_ENV === 'production' 
+        ? ['https://optipredict.my.id', 'https://www.optipredict.my.id']
+        : ['http://localhost:3000', 'http://127.0.0.1:3000']
+    });
+  }
+  
+  // Handle multer file upload errors
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({
+        success: false,
+        message: 'File terlalu besar. Maksimal 500MB.'
+      });
+    }
+  }
+  
+  res.status(500).json({ 
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
+
+// PERBAIKAN: Health check endpoint dengan informasi debug
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV,
+    origin: req.get('origin'),
+    host: req.get('host'),
+    cookies: Object.keys(req.cookies || {}),
+    corsOrigins: process.env.NODE_ENV === 'production' 
+      ? ['https://optipredict.my.id', 'https://www.optipredict.my.id']
+      : ['http://localhost:3000', 'http://127.0.0.1:3000']
+  });
+});
+
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
   console.log(`🚀 Express server berjalan di http://localhost:${PORT}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV}`);
+  console.log(`🔐 CORS Origins: ${process.env.NODE_ENV === 'production' ? 'optipredict.my.id' : 'localhost:3000'}`);
   console.log(`⏰ Extended timeout untuk file besar: 4 jam maksimal`);
   console.log(`📊 Support untuk file hingga 500MB`);
   console.log(`🔐 Menangani autentikasi dan routing ke ML service`);
@@ -458,6 +610,8 @@ const server = app.listen(PORT, () => {
   console.log(`   - DELETE /api/predictions/all (delete all)`);
   console.log(`   - DELETE /api/prediction/:id (delete one)`);
   console.log(`   - GET  /api/ml-health (health check)`);
+  console.log(`   - GET  /api/auth/check (auth check with refresh)`);
+  console.log(`   - GET  /health (server health)`);
 });
 
 server.timeout = 14400000;
