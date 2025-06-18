@@ -3,9 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start-all": "concurrently \"npm:start-backend\" \"npm:build-frontend\" \"npm:start-python\" \"npm:start-frontend\" ",
+    "start-all": "concurrently \"npm:start-backend\" \"npm:start-python\" \"npm:start-frontend\" ",
     "start-backend": "npm --prefix backend start",
-    "build-frontend": "npm --prefix frontend run build",
     "start-frontend": "npm --prefix frontend start",
     "start-python": "python3 backend/python/app.py"
   },
