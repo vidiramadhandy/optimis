@@ -19,6 +19,20 @@ export function AuthProvider({ children }) {
   const INACTIVITY_TIMEOUT = 60 * 60 * 1000; // 1 jam
   const WARNING_TIME = 5 * 60 * 1000; // 5 menit sebelum logout
 
+  // PERBAIKAN: Konfigurasi API Base URL yang sesuai dengan backend
+  const getApiBaseUrl = () => {
+    // Gunakan path relatif untuk memanfaatkan Apache proxy
+    return '';
+  };
+
+  // PERBAIKAN: Helper function untuk membuat URL API
+  const createApiUrl = (endpoint) => {
+    const baseUrl = getApiBaseUrl();
+    // Pastikan endpoint dimulai dengan /api/
+    const normalizedEndpoint = endpoint.startsWith('/api/') ? endpoint : `/api/${endpoint}`;
+    return `${baseUrl}${normalizedEndpoint}`;
+  };
+
   // Fungsi untuk reset timer inactivity
   const resetInactivityTimer = () => {
     lastActivityRef.current = Date.now();
@@ -80,58 +94,62 @@ export function AuthProvider({ children }) {
     }
   }, [user]);
 
-  // Fungsi untuk mengambil data user berdasarkan token
-  const fetchUserData = async () => {
+  // PERBAIKAN: Fungsi untuk check auth status yang sesuai dengan backend
+  const checkAuthStatus = async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      
-      if (!token) {
-        setUser(null);
-        setIsLoading(false);
-        return null;
-      }
-
-      const response = await fetch('http://20.189.116.138:5000/api/auth/me', {
+      // PERBAIKAN: Gunakan endpoint /api/auth/check yang sudah ada di backend
+      const response = await fetch(createApiUrl('/api/auth/check'), {
+        method: 'GET',
+        credentials: 'include', // PENTING: untuk cookie authentication
         headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include'
+          'Content-Type': 'application/json'
+        }
       });
 
       if (response.ok) {
-        const userData = await response.json();
-        setUser(userData);
-        return userData;
-      } else {
-        localStorage.removeItem('auth_token');
-        setUser(null);
-        return null;
+        const data = await response.json();
+        if (data.authenticated && data.user) {
+          setUser(data.user);
+          resetInactivityTimer();
+          return true;
+        }
       }
-    } catch (error) {
-      console.error('Error fetching user data:', error);
-      localStorage.removeItem('auth_token');
+      
+      // Jika tidak authenticated, clear user data
       setUser(null);
-      return null;
+      return false;
+    } catch (error) {
+      console.error('Auth check error:', error);
+      setUser(null);
+      return false;
     } finally {
       setIsLoading(false);
     }
   };
 
+  // PERBAIKAN: Fungsi untuk mengambil data user (tidak diperlukan karena sudah ada di checkAuthStatus)
+  const fetchUserData = async () => {
+    return await checkAuthStatus();
+  };
+
   // Periksa status autentikasi saat aplikasi dimuat
   useEffect(() => {
-    fetchUserData();
+    checkAuthStatus();
   }, []);
 
-  // Fungsi login dengan remember me support
+  // PERBAIKAN: Fungsi login yang sesuai dengan backend cookie authentication
   const login = async (email, password, remember = false) => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch('http://20.189.116.138:5000/api/auth/login', {
+      // PERBAIKAN: Gunakan path relatif yang akan di-proxy oleh Apache
+      const response = await fetch(createApiUrl('/api/auth/login'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include', // PENTING: untuk cookie authentication
         body: JSON.stringify({ email, password, remember }),
       });
 
@@ -142,34 +160,19 @@ export function AuthProvider({ children }) {
         throw new Error(data.message || 'Login failed');
       }
       
-      if (data.token) {
-        localStorage.setItem('auth_token', data.token);
-        
-        // Handle remember me logic
+      // PERBAIKAN: Backend menggunakan cookie authentication, tidak perlu localStorage token
+      if (data.user) {
+        // Handle remember me logic di localStorage untuk UI
         if (remember) {
           localStorage.setItem('remembered_email', email);
           localStorage.setItem('should_remember', 'true');
-          
-          // Set token expiry yang lebih lama untuk remember me
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 30); // 30 hari
-          localStorage.setItem('token_expiry', expiryDate.toISOString());
         } else {
           localStorage.removeItem('remembered_email');
           localStorage.removeItem('should_remember');
-          
-          // Set token expiry normal (1 hari)
-          const expiryDate = new Date();
-          expiryDate.setDate(expiryDate.getDate() + 1);
-          localStorage.setItem('token_expiry', expiryDate.toISOString());
         }
         
-        // Set user data
-        if (data.id && data.name && data.email) {
-          setUser(data);
-        } else {
-          await fetchUserData();
-        }
+        // Set user data dari response
+        setUser(data.user);
         
         // Start inactivity timer setelah login
         resetInactivityTimer();
@@ -177,7 +180,7 @@ export function AuthProvider({ children }) {
         return true;
       }
       
-      setError('Token not found during responding');
+      setError('User data not found in response');
       return false;
     } catch (error) {
       console.error('Login failed:', error);
@@ -188,15 +191,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Fungsi register
+  // PERBAIKAN: Fungsi register yang sesuai dengan backend
   const register = async (userData) => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch('http://20.189.116.138:5000/api/auth/register', {
+      // PERBAIKAN: Gunakan path relatif untuk register
+      const response = await fetch(createApiUrl('/api/auth/register'), {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
         body: JSON.stringify(userData),
       });
 
@@ -218,19 +225,17 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Fungsi logout yang enhanced
+  // PERBAIKAN: Fungsi logout yang sesuai dengan backend cookie authentication
   const logout = async (isAutoLogout = false) => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (token) {
-        await fetch('http://20.189.116.138:5000/api/logout', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          },
-          credentials: 'include'
-        });
-      }
+      // PERBAIKAN: Gunakan path relatif untuk logout
+      await fetch(createApiUrl('/api/auth/logout'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include' // PENTING: untuk cookie authentication
+      });
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -239,9 +244,9 @@ export function AuthProvider({ children }) {
         clearTimeout(timeoutRef.current);
       }
       
-      // Hapus token dan user data
-      localStorage.removeItem('auth_token');
-      localStorage.removeItem('token_expiry');
+      // PERBAIKAN: Hapus hanya data localStorage, cookie akan dihapus oleh backend
+      localStorage.removeItem('remembered_email');
+      localStorage.removeItem('should_remember');
       setUser(null);
       
       // Show notification jika auto logout
@@ -271,24 +276,25 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Helper functions
+  // Helper functions untuk remember me (hanya untuk UI, bukan authentication)
   const clearRememberMe = () => {
     localStorage.removeItem('remembered_email');
     localStorage.removeItem('should_remember');
   };
 
   const getRememberedEmail = () => {
+    if (typeof window === 'undefined') return null;
+    
     const isRemembered = localStorage.getItem('should_remember') === 'true';
     const rememberedEmail = localStorage.getItem('remembered_email');
     
     return isRemembered ? rememberedEmail : null;
   };
 
+  // PERBAIKAN: Token expiry check tidak diperlukan karena backend menggunakan cookie
   const isTokenExpired = () => {
-    const expiry = localStorage.getItem('token_expiry');
-    if (!expiry) return true;
-    
-    return new Date() > new Date(expiry);
+    // Dengan cookie authentication, backend akan handle expiry
+    return false;
   };
 
   return (
@@ -300,6 +306,7 @@ export function AuthProvider({ children }) {
       isLoading, 
       error,
       fetchUserData,
+      checkAuthStatus,
       clearRememberMe,
       getRememberedEmail,
       isTokenExpired,
