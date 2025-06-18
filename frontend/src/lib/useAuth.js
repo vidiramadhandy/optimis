@@ -1,4 +1,4 @@
-// src/lib/useAuth.js - PERBAIKAN LENGKAP
+// src/lib/useAuth.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -10,30 +10,31 @@ export function useAuth() {
   const [user, setUser] = useState(null);
   const router = useRouter();
 
-  // PERBAIKAN: Helper function untuk membuat URL API
-  const createApiUrl = (endpoint) => {
-    // Gunakan path relatif untuk memanfaatkan Apache proxy
-    const normalizedEndpoint = endpoint.startsWith('/api/') ? endpoint : `/api/${endpoint}`;
-    return normalizedEndpoint;
-  };
-
-  // PERBAIKAN: Fungsi untuk cek autentikasi dengan cookie authentication
+  // Fungsi untuk cek autentikasi
   const checkAuth = async () => {
     try {
       setIsCheckingAuth(true);
       
-      // PERBAIKAN: Gunakan path relatif dan cookie authentication
-      const response = await fetch(createApiUrl('/api/auth/check'), {
+      // Ambil token dari localStorage (sesuaikan dengan nama yang Anda gunakan)
+      const token = localStorage.getItem('auth_token');
+      
+      if (!token) {
+        setIsAuthenticated(false);
+        setIsCheckingAuth(false);
+        return false;
+      }
+
+      // Verifikasi token dengan backend
+      const response = await fetch('http://optipredict.my.id:5000/api/auth/check', {
         method: 'GET',
-        credentials: 'include', // PENTING: untuk cookie authentication
         headers: {
-          'Content-Type': 'application/json'
+          'x-access-token': token
         }
       });
 
       if (response.ok) {
         const result = await response.json();
-        if (result.authenticated && result.user) {
+        if (result.authenticated) {
           setIsAuthenticated(true);
           setUser(result.user);
           setIsCheckingAuth(false);
@@ -41,16 +42,16 @@ export function useAuth() {
         }
       }
       
-      // Jika tidak authenticated
+      // Jika token tidak valid
+      localStorage.removeItem('auth_token');
       setIsAuthenticated(false);
-      setUser(null);
       setIsCheckingAuth(false);
       return false;
       
     } catch (error) {
       console.error('Error checking authentication:', error);
+      localStorage.removeItem('auth_token');
       setIsAuthenticated(false);
-      setUser(null);
       setIsCheckingAuth(false);
       return false;
     }
@@ -61,18 +62,16 @@ export function useAuth() {
     checkAuth();
   }, []);
 
-  // PERBAIKAN: Fungsi login dengan cookie authentication
-  const login = async (email, password, remember = false) => {
+  const login = async (email, password) => {
     try {
       setLoading(true);
       setError(null);
       
-      // PERBAIKAN: Gunakan path relatif untuk login
-      const response = await fetch(createApiUrl('/api/auth/login'), {
+      const response = await fetch('http://optipredict.my.id:5000/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // PENTING: untuk cookie authentication
-        body: JSON.stringify({ email, password, remember }),
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
@@ -82,26 +81,26 @@ export function useAuth() {
         return false;
       }
       
-      // PERBAIKAN: Backend menggunakan cookie, tidak perlu localStorage token
-      if (data.user) {
-        // Handle remember me logic di localStorage untuk UI saja
-        if (remember) {
-          localStorage.setItem('remembered_email', email);
-          localStorage.setItem('should_remember', 'true');
-        } else {
-          localStorage.removeItem('remembered_email');
-          localStorage.removeItem('should_remember');
+      if (data.token) {
+        localStorage.setItem('auth_token', data.token);
+        
+        // Simpan data user jika ada
+        if (data.id && data.name && data.email) {
+          const userData = {
+            id: data.id,
+            name: data.name,
+            email: data.email
+          };
+          localStorage.setItem('userData', JSON.stringify(userData));
+          setUser(userData);
         }
         
-        // Set user data dari response
-        setUser(data.user);
         setIsAuthenticated(true);
-        
         router.push('/home');
         return true;
       }
       
-      setError('User data tidak ditemukan dalam respons');
+      setError('Token tidak ditemukan dalam respons');
       return false;
     } catch (err) {
       console.error('Login failed:', err);
@@ -112,17 +111,14 @@ export function useAuth() {
     }
   };
 
-  // PERBAIKAN: Fungsi register dengan path relatif
   const register = async (userData) => {
     try {
       setLoading(true);
       setError(null);
       
-      // PERBAIKAN: Gunakan path relatif untuk register
-      const response = await fetch(createApiUrl('/api/auth/register'), {
+      const response = await fetch('http://optipredict.my.id:5000/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(userData),
       });
 
@@ -144,32 +140,21 @@ export function useAuth() {
     }
   };
 
-  // PERBAIKAN: Fungsi logout dengan cookie authentication
   const logout = async () => {
     try {
-      // PERBAIKAN: Gunakan path relatif untuk logout
-      const response = await fetch(createApiUrl('/api/auth/logout'), {
+      const response = await fetch('http://optipredict.my.id:5000/api/auth/logout', {
         method: 'POST',
-        credentials: 'include', // PENTING: untuk cookie authentication
-        headers: {
-          'Content-Type': 'application/json'
-        }
+        credentials: 'include',
       });
       
-      // PERBAIKAN: Hapus hanya data localStorage untuk UI, cookie dihapus oleh backend
-      localStorage.removeItem('remembered_email');
-      localStorage.removeItem('should_remember');
-      
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('userData');
       setIsAuthenticated(false);
       setUser(null);
       router.push('/login');
       return true;
     } catch (err) {
       console.error('Logout failed:', err);
-      // Tetap clear state meskipun request gagal
-      setIsAuthenticated(false);
-      setUser(null);
-      router.push('/login');
       return false;
     }
   };
@@ -183,57 +168,16 @@ export function useAuth() {
     return true;
   };
 
-  // PERBAIKAN: Fungsi tambahan untuk kompatibilitas dengan AuthContext
-  const refreshAuth = async () => {
-    return await checkAuth();
-  };
-
-  // Helper functions untuk remember me (hanya untuk UI)
-  const getRememberedEmail = () => {
-    if (typeof window === 'undefined') return null;
-    
-    const isRemembered = localStorage.getItem('should_remember') === 'true';
-    const rememberedEmail = localStorage.getItem('remembered_email');
-    
-    return isRemembered ? rememberedEmail : null;
-  };
-
-  const clearRememberMe = () => {
-    localStorage.removeItem('remembered_email');
-    localStorage.removeItem('should_remember');
-  };
-
-  // PERBAIKAN: Fungsi untuk extend session (memanggil checkAuth)
-  const extendSession = async () => {
-    if (isAuthenticated) {
-      return await checkAuth();
-    }
-    return false;
-  };
-
   return {
-    // Core authentication functions
     login,
     register,
     logout,
     checkAuth,
     requireAuth,
-    
-    // State
     error,
     loading,
     isAuthenticated,
     isCheckingAuth,
     user,
-    
-    // Additional helper functions
-    refreshAuth,
-    extendSession,
-    getRememberedEmail,
-    clearRememberMe,
-    
-    // Utility functions
-    setError,
-    setLoading
   };
 }
