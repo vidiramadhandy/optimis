@@ -14,6 +14,7 @@ const fs = require('fs');
 
 const app = express();
 
+// Timeout for file uploads
 app.use((req, res, next) => {
   const contentLength = req.get('content-length');
   const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
@@ -38,12 +39,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// CORS Middleware
 app.use(cors({
   origin: ['http://localhost:3000', 'http://20.189.116.138:3000', 'http://optipredict.my.id'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-access-token']
 }));
+
+// Handle OPTIONS preflight requests for all routes
+app.options('*', cors());  // This allows preflight requests
 
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
