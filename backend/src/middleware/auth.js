@@ -267,28 +267,6 @@ const debugAuth = (req, res, next) => {
   next();
 };
 
-// PERBAIKAN: Middleware untuk CORS preflight handling dalam auth context
-const handleAuthCors = (req, res, next) => {
-  // Set headers untuk auth-specific CORS
-  if (req.method === 'OPTIONS') {
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, x-access-token');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    
-    const origin = req.get('origin');
-    const allowedOrigins = process.env.NODE_ENV === 'production' 
-      ? ['https://optipredict.my.id', 'http://optipredict.my.id']
-      : ['http://localhost:3000', 'http://127.0.0.1:3000'];
-    
-    if (allowedOrigins.includes(origin)) {
-      res.header('Access-Control-Allow-Origin', origin);
-    }
-    
-    return res.status(200).end();
-  }
-  next();
-};
-
 // PERBAIKAN: Middleware untuk cleanup expired rate limit entries
 const cleanupRateLimit = () => {
   const now = Date.now();
@@ -314,6 +292,5 @@ module.exports = {
   optionalAuth,
   authRateLimit,
   debugAuth,
-  handleAuthCors,
   getCookieOptions // Export helper function
 };

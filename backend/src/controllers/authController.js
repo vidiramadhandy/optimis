@@ -1,10 +1,10 @@
-// backend/src/controllers/authController.js - PERBAIKAN TANPA LAST_LOGIN
+// backend/src/controllers/authController.js - KODE LENGKAP DIPERBAIKI
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const config = require('../config');
 
-// PERBAIKAN: Helper function untuk cookie options
+// PERBAIKAN: Helper function untuk cookie options yang konsisten
 function getCookieOptions() {
   const isProduction = process.env.NODE_ENV === 'production';
   
@@ -89,7 +89,7 @@ async function register(req, res) {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 12);
     
-    // PERBAIKAN: Insert tanpa created_at jika kolom tidak ada
+    // Insert new user
     const [result] = await db.query(
       'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
       [name, email, hashedPassword]
@@ -109,7 +109,7 @@ async function register(req, res) {
   }
 }
 
-// PERBAIKAN: Login tanpa update last_login
+// PERBAIKAN: Login user dengan cookie configuration yang tepat
 async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -162,9 +162,6 @@ async function login(req, res) {
     const cookieOptions = getCookieOptions();
     res.cookie('token', token, cookieOptions);
     
-    // PERBAIKAN: HAPUS update last_login
-    // await db.query('UPDATE users SET last_login = NOW() WHERE id = ?', [user.id]);
-    
     logAuthAttempt(req, true, 'Login successful', user.id);
     console.log('✅ Login successful for:', email);
     console.log('🍪 Cookie set with options:', cookieOptions);
@@ -183,7 +180,7 @@ async function login(req, res) {
   }
 }
 
-// Logout user
+// PERBAIKAN: Logout user dengan cookie clearing yang tepat
 function logout(req, res) {
   try {
     console.log('🚪 Logout request received');
@@ -208,7 +205,7 @@ function logout(req, res) {
   }
 }
 
-// PERBAIKAN: CheckAuth tanpa referensi last_login
+// PERBAIKAN: CheckAuth dengan token refresh
 async function checkAuth(req, res) {
   try {
     const token = req.headers['x-access-token'] || 
@@ -232,7 +229,7 @@ async function checkAuth(req, res) {
       const decoded = jwt.verify(token, config.jwtSecret);
       console.log('✅ Token decoded successfully:', { userId: decoded.id });
       
-      // PERBAIKAN: Query tanpa last_login
+      // Cek apakah user masih ada di database
       const [users] = await db.query(
         'SELECT id, name, email FROM users WHERE id = ?', 
         [decoded.id]
@@ -273,7 +270,6 @@ async function checkAuth(req, res) {
         console.log('🔄 Token refreshed for user:', user.id);
       }
       
-      // PERBAIKAN: Response tanpa last_login
       res.json({ 
         authenticated: true, 
         user: {
@@ -308,7 +304,7 @@ async function checkAuth(req, res) {
   }
 }
 
-// PERBAIKAN: getUserData tanpa last_login
+// Get user data from token
 async function getUserData(req, res) {
   try {
     const token = req.headers['x-access-token'] || 
@@ -323,7 +319,6 @@ async function getUserData(req, res) {
 
     const decoded = jwt.verify(token, config.jwtSecret);
 
-    // PERBAIKAN: Query tanpa last_login
     const [users] = await db.query(
       'SELECT id, name, email FROM users WHERE id = ?', 
       [decoded.id]
