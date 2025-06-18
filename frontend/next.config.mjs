@@ -1,6 +1,13 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Untuk reverse proxy
+  output: 'export',
+  trailingSlash: true,
+  skipTrailingSlashRedirect: true,
+  distDir: 'out',
+  images: {
+    unoptimized: true
+  },
+  // Konfigurasi untuk API calls ke Express backend
   async rewrites() {
     return [
       {
@@ -8,13 +15,6 @@ const nextConfig = {
         destination: 'https://optipredict.my.id/api/:path*',
       },
     ]
-  },
-  
-  // Jika menggunakan static export
-  output: 'export',
-  trailingSlash: true,
-  images: {
-    unoptimized: true
   }
 }
 
