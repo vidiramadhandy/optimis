@@ -377,7 +377,7 @@ const AltPage = () => {
 
       // Multiple endpoints with timeout and retry
       const endpoints = [
-        'http://localhost:5000/api/predict-file',
+        'http://optipredict.my.id:5000/api/predict-file',
         'http://optipredict.my.id:5000/api/predict-file'
       ];
 
