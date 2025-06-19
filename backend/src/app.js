@@ -14,15 +14,18 @@ const fs = require('fs');
 
 const app = express();
 
-// **PERBAIKAN 1: Konfigurasi CORS yang lebih robust**
+// **PERBAIKAN 1: CORS Configuration untuk Development dan Production**
 const corsOptions = {
   origin: function (origin, callback) {
-    // Izinkan request tanpa origin (untuk mobile apps, Postman, dll)
     if (!origin) return callback(null, true);
     
     const allowedOrigins = [
       'https://optipredict.my.id',
-      'https://www.optipredict.my.id'
+      'https://www.optipredict.my.id',
+      'http://localhost:3000',        // Untuk development
+      'http://127.0.0.1:3000',       // Untuk development
+      'http://localhost:3001',        // Backup port
+      'http://optipredict.my.id'      // HTTP fallback
     ];
     
     if (allowedOrigins.includes(origin)) {
@@ -45,24 +48,20 @@ const corsOptions = {
     'Cache-Control'
   ],
   exposedHeaders: ['set-cookie', 'x-new-token'],
-  optionsSuccessStatus: 200, // **PENTING: Untuk browser lama**
+  optionsSuccessStatus: 200,
   preflightContinue: false
 };
 
-// **PERBAIKAN 2: Urutan middleware yang benar**
-// 1. CORS harus di-setup pertama kali
+// **PERBAIKAN 2: Middleware Order yang Benar**
 app.use(cors(corsOptions));
-
-// 2. Handle preflight untuk semua route
 app.options('*', cors(corsOptions));
 
-// **PERBAIKAN 3: Eksplisit OPTIONS handler untuk memastikan**
-app.use('/api/*', (req, res, next) => {
+// **PERBAIKAN 3: Explicit OPTIONS Handler**
+app.use((req, res, next) => {
   if (req.method === 'OPTIONS') {
     const origin = req.get('origin');
     console.log('🔍 Handling OPTIONS request for:', req.path, 'from origin:', origin);
     
-    // Set headers secara eksplisit
     res.header('Access-Control-Allow-Origin', origin || '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-access-token, Origin, X-Requested-With, Accept, Cache-Control');
@@ -73,17 +72,20 @@ app.use('/api/*', (req, res, next) => {
   next();
 });
 
-// **PERBAIKAN 4: Logging yang lebih detail**
+// **PERBAIKAN 4: Enhanced Logging**
 app.use((req, res, next) => {
   const origin = req.get('origin');
   const timestamp = new Date().toISOString();
-  console.log(`📡 [${timestamp}] ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
+  const userAgent = req.get('user-agent')?.substring(0, 50) || 'unknown';
   
-  // Debug khusus untuk OPTIONS
+  console.log(`📡 [${timestamp}] ${req.method} ${req.path}`);
+  console.log(`   Origin: ${origin || 'no-origin'}`);
+  console.log(`   User-Agent: ${userAgent}...`);
+  
   if (req.method === 'OPTIONS') {
-    console.log('🔍 OPTIONS Headers:', {
-      'access-control-request-method': req.get('access-control-request-method'),
-      'access-control-request-headers': req.get('access-control-request-headers'),
+    console.log('🔍 OPTIONS Details:', {
+      'request-method': req.get('access-control-request-method'),
+      'request-headers': req.get('access-control-request-headers'),
       'origin': origin
     });
   }
@@ -91,28 +93,28 @@ app.use((req, res, next) => {
   next();
 });
 
-// 3. Middleware lainnya
+// Basic middleware
 app.use(cookieParser());
 app.use(express.json({ limit: '500mb' }));
 app.use(express.urlencoded({ limit: '500mb', extended: true }));
 
-// **PERBAIKAN 5: Timeout configuration yang lebih baik**
+// **PERBAIKAN 5: Timeout Configuration**
 app.use((req, res, next) => {
   const contentLength = req.get('content-length');
   const fileSizeMB = contentLength ? parseInt(contentLength) / (1024 * 1024) : 0;
   
-  if (req.path === '/api/predict-file') {
+  if (req.path.includes('/predict-file')) {
     if (fileSizeMB > 100) {
-      req.setTimeout(14400000); // 4 jam
+      req.setTimeout(14400000);
       res.setTimeout(14400000);
     } else if (fileSizeMB > 50) {
-      req.setTimeout(7200000); // 2 jam
+      req.setTimeout(7200000);
       res.setTimeout(7200000);
     } else {
-      req.setTimeout(3600000); // 1 jam
+      req.setTimeout(3600000);
     }
   } else {
-    req.setTimeout(600000); // 10 menit untuk request biasa
+    req.setTimeout(600000);
     res.setTimeout(600000);
   }
   next();
@@ -133,34 +135,45 @@ const upload = multer({
   }
 });
 
-// **PERBAIKAN 6: Cookie options yang lebih spesifik**
 const cookieOptions = {
   httpOnly: true,
   maxAge: 24 * 60 * 60 * 1000,
   path: '/',
-  secure: true,
+  secure: process.env.NODE_ENV === 'production',
   sameSite: 'lax',
-  domain: 'optipredict.my.id' // Lebih spesifik daripada '.my.id'
+  domain: process.env.NODE_ENV === 'production' ? 'optipredict.my.id' : undefined
 };
 
-// **PERBAIKAN 7: Health check endpoint yang konsisten**
+// **PERBAIKAN 6: Health Check Endpoints - HARUS SEBELUM ROUTES**
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
+    memory: process.memoryUsage(),
+    pid: process.pid
+  });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    origin: req.get('origin'),
-    host: req.get('host'),
-    cookies: Object.keys(req.cookies || {}),
-    version: '1.0.0'
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
+    database: 'connected',
+    flask_ml: FLASK_ML_URL
   });
 });
 
-// Routes - pastikan setelah semua middleware CORS
+// **PERBAIKAN 7: Routes Registration**
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 
-// Endpoint auth check dengan token refresh
+// **PERBAIKAN 8: Auth Check Endpoint**
 app.get('/api/auth/check', async (req, res) => {
   try {
     const token = req.headers['x-access-token'] ||
@@ -199,7 +212,7 @@ app.get('/api/auth/check', async (req, res) => {
           { expiresIn: config.jwtExpire || '24h' }
         );
         res.cookie('token', newToken, cookieOptions);
-        res.header('x-new-token', newToken); // **PERBAIKAN: Expose token di header**
+        res.header('x-new-token', newToken);
       }
 
       res.json({
@@ -230,12 +243,14 @@ app.get('/api/auth/check', async (req, res) => {
   }
 });
 
-// Endpoint predict
+// **PERBAIKAN 9: Predict Endpoints**
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const data = req.body;
     if (!data.userId) data.userId = userId;
+
+    console.log('🔮 Prediction request from user:', userId);
 
     const flaskResponse = await axios.post(
       `${FLASK_ML_URL}/predict`,
@@ -264,7 +279,6 @@ app.post('/api/predict', verifyToken, async (req, res) => {
   }
 });
 
-// **PERBAIKAN 8: Endpoint untuk file upload**
 app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, res) => {
   try {
     const userId = req.userId;
@@ -276,6 +290,8 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
         message: 'File tidak ditemukan'
       });
     }
+
+    console.log('📁 File prediction request:', file.originalname, 'from user:', userId);
 
     const formData = new FormData();
     formData.append('file', fs.createReadStream(file.path), {
@@ -298,7 +314,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
       }
     );
 
-    // Hapus file temporary
+    // Cleanup temp file
     fs.unlink(file.path, (err) => {
       if (err) console.error('Error deleting temp file:', err);
     });
@@ -332,12 +348,13 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
   }
 });
 
-// **PERBAIKAN 9: Error handling middleware yang lebih baik**
+// **PERBAIKAN 10: Error Handling Middleware**
 app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
+  console.error('🚨 Server Error:', err);
   
   if (err.message && err.message.includes('CORS')) {
     return res.status(403).json({
+      success: false,
       message: 'CORS policy violation',
       origin: req.get('origin')
     });
@@ -349,32 +366,54 @@ app.use((err, req, res, next) => {
       message: err.message
     });
   }
+
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({
+      success: false,
+      message: 'File terlalu besar. Maksimal 500MB.'
+    });
+  }
   
   res.status(500).json({
+    success: false,
     message: 'Internal server error',
-    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    error: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
   });
 });
 
-// **PERBAIKAN 10: Catch-all untuk route yang tidak ditemukan**
+// **PERBAIKAN 11: Catch-all Route - HARUS PALING AKHIR**
 app.use('*', (req, res) => {
   console.log(`❌ Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
+    success: false,
     message: 'Route tidak ditemukan',
     path: req.originalUrl,
-    method: req.method
+    method: req.method,
+    timestamp: new Date().toISOString()
   });
 });
 
+// **PERBAIKAN 12: Server Configuration**
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
-  console.log(`🚀 Express server berjalan di https://optipredict.my.id:${PORT}`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV}`);
-  console.log(`🔒 CORS enabled for: https://optipredict.my.id, https://www.optipredict.my.id`);
+  console.log(`🚀 Express server running on port ${PORT}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔒 CORS enabled for production and development origins`);
+  console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
 });
 
+// Server timeouts
 server.timeout = 14400000;
 server.keepAliveTimeout = 14400000;
 server.headersTimeout = 14400000;
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('🛑 SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('✅ Process terminated');
+  });
+});
 
 module.exports = app;
