@@ -22,10 +22,10 @@ const corsOptions = {
     const allowedOrigins = [
       'https://optipredict.my.id',
       'https://www.optipredict.my.id',
-      'http://localhost:3000',        // Untuk development
-      'http://127.0.0.1:3000',       // Untuk development
-      'http://localhost:3001',        // Backup port
-      'http://optipredict.my.id'      // HTTP fallback
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+      'http://localhost:3001',
+      'http://optipredict.my.id'
     ];
     
     if (allowedOrigins.includes(origin)) {
@@ -144,7 +144,7 @@ const cookieOptions = {
   domain: process.env.NODE_ENV === 'production' ? 'optipredict.my.id' : undefined
 };
 
-// **PERBAIKAN 6: Health Check Endpoints - HARUS SEBELUM ROUTES**
+// **PERBAIKAN 6: Health Check Endpoints**
 app.get('/health', (req, res) => {
   res.json({
     status: 'OK',
@@ -243,7 +243,214 @@ app.get('/api/auth/check', async (req, res) => {
   }
 });
 
-// **PERBAIKAN 9: Predict Endpoints**
+// **PERBAIKAN 9: PREDICTIONS ENDPOINTS - SOLUSI UNTUK ERROR 404**
+// Get predictions dengan limit dan pagination
+app.get('/api/predictions', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const limit = req.query.limit ? parseInt(req.query.limit) : 20;
+    const offset = req.query.offset ? parseInt(req.query.offset) : 0;
+    
+    console.log(`📊 Getting predictions for user ${userId}, limit: ${limit}, offset: ${offset}`);
+    
+    // Query predictions dengan pagination
+    const [predictions] = await db.query(
+      `SELECT id, input_data, prediction_result, created_at, updated_at 
+       FROM predictions 
+       WHERE user_id = ? 
+       ORDER BY created_at DESC 
+       LIMIT ? OFFSET ?`,
+      [userId, limit, offset]
+    );
+    
+    // Get total count untuk pagination
+    const [countResult] = await db.query(
+      'SELECT COUNT(*) as total FROM predictions WHERE user_id = ?',
+      [userId]
+    );
+    
+    const total = countResult[0].total;
+    
+    res.json({
+      success: true,
+      data: predictions,
+      pagination: {
+        total: total,
+        limit: limit,
+        offset: offset,
+        hasMore: (offset + limit) < total
+      },
+      message: 'Predictions retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error getting predictions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving predictions',
+      error: error.message
+    });
+  }
+});
+
+// Get all predictions (tanpa limit)
+app.get('/api/predictions/all', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    console.log(`📊 Getting all predictions for user ${userId}`);
+    
+    const [predictions] = await db.query(
+      `SELECT id, input_data, prediction_result, created_at, updated_at 
+       FROM predictions 
+       WHERE user_id = ? 
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      data: predictions,
+      count: predictions.length,
+      message: 'All predictions retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error getting all predictions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving all predictions',
+      error: error.message
+    });
+  }
+});
+
+// Get prediction by ID
+app.get('/api/prediction/:id', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const predictionId = req.params.id;
+    
+    console.log(`📊 Getting prediction ${predictionId} for user ${userId}`);
+    
+    const [predictions] = await db.query(
+      `SELECT id, input_data, prediction_result, created_at, updated_at 
+       FROM predictions 
+       WHERE id = ? AND user_id = ?`,
+      [predictionId, userId]
+    );
+    
+    if (predictions.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Prediction not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: predictions[0],
+      message: 'Prediction retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error getting prediction by ID:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving prediction',
+      error: error.message
+    });
+  }
+});
+
+// Save new prediction result
+app.post('/api/predictions', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { input_data, prediction_result } = req.body;
+    
+    if (!input_data || !prediction_result) {
+      return res.status(400).json({
+        success: false,
+        message: 'input_data and prediction_result are required'
+      });
+    }
+    
+    console.log(`💾 Saving prediction for user ${userId}`);
+    
+    const [result] = await db.query(
+      `INSERT INTO predictions (user_id, input_data, prediction_result, created_at, updated_at) 
+       VALUES (?, ?, ?, NOW(), NOW())`,
+      [userId, JSON.stringify(input_data), JSON.stringify(prediction_result)]
+    );
+    
+    // Get the saved prediction
+    const [savedPrediction] = await db.query(
+      'SELECT id, input_data, prediction_result, created_at, updated_at FROM predictions WHERE id = ?',
+      [result.insertId]
+    );
+    
+    res.json({
+      success: true,
+      data: savedPrediction[0],
+      message: 'Prediction saved successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error saving prediction:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error saving prediction',
+      error: error.message
+    });
+  }
+});
+
+// Get predictions statistics
+app.get('/api/predictions/stats', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    console.log(`📈 Getting prediction stats for user ${userId}`);
+    
+    const [stats] = await db.query(
+      `SELECT 
+        COUNT(*) as total_predictions,
+        DATE(created_at) as prediction_date,
+        COUNT(*) as daily_count
+       FROM predictions 
+       WHERE user_id = ? 
+       GROUP BY DATE(created_at) 
+       ORDER BY prediction_date DESC 
+       LIMIT 30`,
+      [userId]
+    );
+    
+    const [totalCount] = await db.query(
+      'SELECT COUNT(*) as total FROM predictions WHERE user_id = ?',
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        total_predictions: totalCount[0].total,
+        daily_stats: stats
+      },
+      message: 'Prediction statistics retrieved successfully'
+    });
+    
+  } catch (error) {
+    console.error('Error getting prediction stats:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving prediction statistics',
+      error: error.message
+    });
+  }
+});
+
+// **PERBAIKAN 10: Predict Endpoints**
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
@@ -263,6 +470,18 @@ app.post('/api/predict', verifyToken, async (req, res) => {
     );
 
     if (flaskResponse.status === 200) {
+      // Simpan hasil prediksi ke database
+      try {
+        await db.query(
+          `INSERT INTO predictions (user_id, input_data, prediction_result, created_at, updated_at) 
+           VALUES (?, ?, ?, NOW(), NOW())`,
+          [userId, JSON.stringify(data), JSON.stringify(flaskResponse.data)]
+        );
+        console.log('✅ Prediction saved to database');
+      } catch (saveError) {
+        console.error('Error saving prediction to database:', saveError);
+      }
+      
       res.json(flaskResponse.data);
     } else {
       res.status(flaskResponse.status).json({
@@ -320,6 +539,18 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
     });
 
     if (flaskResponse.status === 200) {
+      // Simpan hasil prediksi file ke database
+      try {
+        await db.query(
+          `INSERT INTO predictions (user_id, input_data, prediction_result, created_at, updated_at) 
+           VALUES (?, ?, ?, NOW(), NOW())`,
+          [userId, JSON.stringify({file: file.originalname}), JSON.stringify(flaskResponse.data)]
+        );
+        console.log('✅ File prediction saved to database');
+      } catch (saveError) {
+        console.error('Error saving file prediction to database:', saveError);
+      }
+      
       res.json({
         success: true,
         data: flaskResponse.data,
@@ -348,7 +579,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
   }
 });
 
-// **PERBAIKAN 10: Error Handling Middleware**
+// **PERBAIKAN 11: Error Handling Middleware**
 app.use((err, req, res, next) => {
   console.error('🚨 Server Error:', err);
   
@@ -381,7 +612,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// **PERBAIKAN 11: Catch-all Route - HARUS PALING AKHIR**
+// **PERBAIKAN 12: Catch-all Route - HARUS PALING AKHIR**
 app.use('*', (req, res) => {
   console.log(`❌ Route not found: ${req.method} ${req.originalUrl}`);
   res.status(404).json({
@@ -393,7 +624,7 @@ app.use('*', (req, res) => {
   });
 });
 
-// **PERBAIKAN 12: Server Configuration**
+// **PERBAIKAN 13: Server Configuration**
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`🚀 Express server running on port ${PORT}`);
@@ -401,6 +632,7 @@ const server = app.listen(PORT, () => {
   console.log(`🔒 CORS enabled for production and development origins`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
   console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
+  console.log(`📊 Predictions API: http://localhost:${PORT}/api/predictions`);
 });
 
 // Server timeouts
