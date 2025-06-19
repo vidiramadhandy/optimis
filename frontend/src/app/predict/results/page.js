@@ -218,7 +218,7 @@ const Results = () => {
         }
 
         console.log('🔍 Verifying token with backend...');
-        const response = await fetch('http://20.189.116.138:5000/api/auth/check', {
+        const response = await fetch('http://optipredict.my.id:5000/api/auth/check', {
           method: 'GET',
           headers: {
             'x-access-token': token,
@@ -339,7 +339,7 @@ const Results = () => {
       console.log('🔍 Fetching from database, prediction ID:', predictionId);
       
       // PERBAIKAN: Gunakan endpoint history untuk mendapatkan data
-      const response = await fetch('http://20.189.116.138:5000/api/predictions', {
+      const response = await fetch('http://optipredict.my.id:5000/api/predictions', {
         method: 'GET',
         headers: {
           'x-access-token': token,

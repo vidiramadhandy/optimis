@@ -109,7 +109,7 @@ const AltPage = () => {
           return;
         }
 
-        const response = await fetch('http://20.189.116.138:5000/api/auth/check', {
+        const response = await fetch('http://optipredict.my.id:5000/api/auth/check', {
           headers: { 'x-access-token': token },
           credentials: 'include',
         });
@@ -139,8 +139,7 @@ const AltPage = () => {
   const checkFlaskService = async () => {
     const endpoints = [
       'http://localhost:5001/health',
-      'http://20.189.116.138:5001/health',
-      'http://20.189.116.139:5001/health'
+      'http://optipredict.my.id:5001/health'
     ];
 
     for (const endpoint of endpoints) {
@@ -379,8 +378,7 @@ const AltPage = () => {
       // Multiple endpoints with timeout and retry
       const endpoints = [
         'http://localhost:5000/api/predict-file',
-        'http://20.189.116.138:5000/api/predict-file',
-        'http://20.189.116.139:5000/api/predict-file'
+        'http://optipredict.my.id:5000/api/predict-file'
       ];
 
       let response = null;
