@@ -243,7 +243,7 @@ app.get('/api/auth/check', async (req, res) => {
   }
 });
 
-// **PERBAIKAN 9: PREDICTIONS ENDPOINTS - SOLUSI UNTUK ERROR 404**
+// **PERBAIKAN 9: PREDICTIONS ENDPOINTS - SESUAI DATABASE SCHEMA**
 // Get predictions dengan limit dan pagination
 app.get('/api/predictions', verifyToken, async (req, res) => {
   try {
@@ -253,9 +253,25 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
     
     console.log(`📊 Getting predictions for user ${userId}, limit: ${limit}, offset: ${offset}`);
     
-    // Query predictions dengan pagination
+    // Validasi input
+    if (isNaN(limit) || limit < 1 || limit > 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Limit must be between 1 and 100'
+      });
+    }
+    
+    if (isNaN(offset) || offset < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Offset must be 0 or greater'
+      });
+    }
+    
+    // Query predictions dengan kolom yang sesuai database schema
     const [predictions] = await db.query(
-      `SELECT id, input_data, prediction_result, created_at, updated_at 
+      `SELECT id, user_id, snr, inputs, prediction, confidence, created_at, 
+              prediction_number, snr_normalized, quality_assessment, input_type, model_version
        FROM predictions 
        WHERE user_id = ? 
        ORDER BY created_at DESC 
@@ -269,11 +285,30 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
       [userId]
     );
     
-    const total = countResult[0].total;
+    const total = countResult[0]?.total || 0;
+    
+    // Format data untuk frontend dengan backward compatibility
+    const formattedPredictions = predictions.map(pred => ({
+      id: pred.id,
+      user_id: pred.user_id,
+      snr: pred.snr,
+      inputs: pred.inputs,
+      prediction: pred.prediction,
+      confidence: pred.confidence,
+      created_at: pred.created_at,
+      prediction_number: pred.prediction_number,
+      snr_normalized: pred.snr_normalized,
+      quality_assessment: pred.quality_assessment,
+      input_type: pred.input_type,
+      model_version: pred.model_version,
+      // Backward compatibility untuk frontend yang masih menggunakan nama lama
+      input_data: pred.inputs,
+      prediction_result: pred.prediction
+    }));
     
     res.json({
       success: true,
-      data: predictions,
+      data: formattedPredictions,
       pagination: {
         total: total,
         limit: limit,
@@ -284,11 +319,11 @@ app.get('/api/predictions', verifyToken, async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error getting predictions:', error);
+    console.error('🚨 Error in /api/predictions:', error);
     res.status(500).json({
       success: false,
-      message: 'Error retrieving predictions',
-      error: error.message
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
     });
   }
 });
@@ -301,26 +336,34 @@ app.get('/api/predictions/all', verifyToken, async (req, res) => {
     console.log(`📊 Getting all predictions for user ${userId}`);
     
     const [predictions] = await db.query(
-      `SELECT id, input_data, prediction_result, created_at, updated_at 
+      `SELECT id, user_id, snr, inputs, prediction, confidence, created_at, 
+              prediction_number, snr_normalized, quality_assessment, input_type, model_version
        FROM predictions 
        WHERE user_id = ? 
        ORDER BY created_at DESC`,
       [userId]
     );
     
+    // Format dengan backward compatibility
+    const formattedPredictions = predictions.map(pred => ({
+      ...pred,
+      input_data: pred.inputs,
+      prediction_result: pred.prediction
+    }));
+    
     res.json({
       success: true,
-      data: predictions,
+      data: formattedPredictions,
       count: predictions.length,
       message: 'All predictions retrieved successfully'
     });
     
   } catch (error) {
-    console.error('Error getting all predictions:', error);
+    console.error('🚨 Error getting all predictions:', error);
     res.status(500).json({
       success: false,
       message: 'Error retrieving all predictions',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
     });
   }
 });
@@ -329,12 +372,20 @@ app.get('/api/predictions/all', verifyToken, async (req, res) => {
 app.get('/api/prediction/:id', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const predictionId = req.params.id;
+    const predictionId = parseInt(req.params.id);
+    
+    if (isNaN(predictionId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid prediction ID'
+      });
+    }
     
     console.log(`📊 Getting prediction ${predictionId} for user ${userId}`);
     
     const [predictions] = await db.query(
-      `SELECT id, input_data, prediction_result, created_at, updated_at 
+      `SELECT id, user_id, snr, inputs, prediction, confidence, created_at, 
+              prediction_number, snr_normalized, quality_assessment, input_type, model_version
        FROM predictions 
        WHERE id = ? AND user_id = ?`,
       [predictionId, userId]
@@ -347,61 +398,96 @@ app.get('/api/prediction/:id', verifyToken, async (req, res) => {
       });
     }
     
+    const prediction = predictions[0];
+    // Add backward compatibility
+    prediction.input_data = prediction.inputs;
+    prediction.prediction_result = prediction.prediction;
+    
     res.json({
       success: true,
-      data: predictions[0],
+      data: prediction,
       message: 'Prediction retrieved successfully'
     });
     
   } catch (error) {
-    console.error('Error getting prediction by ID:', error);
+    console.error('🚨 Error getting prediction by ID:', error);
     res.status(500).json({
       success: false,
       message: 'Error retrieving prediction',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
     });
   }
 });
 
-// Save new prediction result
+// Save new prediction result - SESUAI DATABASE SCHEMA
 app.post('/api/predictions', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const { input_data, prediction_result } = req.body;
+    const { 
+      snr, 
+      inputs, 
+      prediction, 
+      confidence, 
+      prediction_number, 
+      snr_normalized, 
+      quality_assessment, 
+      input_type, 
+      model_version 
+    } = req.body;
     
-    if (!input_data || !prediction_result) {
+    if (!inputs || !prediction) {
       return res.status(400).json({
         success: false,
-        message: 'input_data and prediction_result are required'
+        message: 'inputs and prediction are required'
       });
     }
     
     console.log(`💾 Saving prediction for user ${userId}`);
     
     const [result] = await db.query(
-      `INSERT INTO predictions (user_id, input_data, prediction_result, created_at, updated_at) 
-       VALUES (?, ?, ?, NOW(), NOW())`,
-      [userId, JSON.stringify(input_data), JSON.stringify(prediction_result)]
+      `INSERT INTO predictions (user_id, snr, inputs, prediction, confidence, 
+                               prediction_number, snr_normalized, quality_assessment, 
+                               input_type, model_version, created_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [
+        userId, 
+        snr || null,
+        typeof inputs === 'string' ? inputs : JSON.stringify(inputs),
+        prediction,
+        confidence || 0,
+        prediction_number || 1,
+        snr_normalized || null,
+        quality_assessment || 'High',
+        input_type || 'Manual',
+        model_version || '2.0'
+      ]
     );
     
     // Get the saved prediction
     const [savedPrediction] = await db.query(
-      'SELECT id, input_data, prediction_result, created_at, updated_at FROM predictions WHERE id = ?',
+      `SELECT id, user_id, snr, inputs, prediction, confidence, created_at, 
+              prediction_number, snr_normalized, quality_assessment, input_type, model_version
+       FROM predictions WHERE id = ?`,
       [result.insertId]
     );
     
+    const prediction_data = savedPrediction[0];
+    // Add backward compatibility
+    prediction_data.input_data = prediction_data.inputs;
+    prediction_data.prediction_result = prediction_data.prediction;
+    
     res.json({
       success: true,
-      data: savedPrediction[0],
+      data: prediction_data,
       message: 'Prediction saved successfully'
     });
     
   } catch (error) {
-    console.error('Error saving prediction:', error);
+    console.error('🚨 Error saving prediction:', error);
     res.status(500).json({
       success: false,
       message: 'Error saving prediction',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
     });
   }
 });
@@ -413,9 +499,33 @@ app.get('/api/predictions/stats', verifyToken, async (req, res) => {
     
     console.log(`📈 Getting prediction stats for user ${userId}`);
     
-    const [stats] = await db.query(
+    // Get basic stats
+    const [totalCount] = await db.query(
+      'SELECT COUNT(*) as total FROM predictions WHERE user_id = ?',
+      [userId]
+    );
+    
+    // Get stats by prediction type
+    const [typeStats] = await db.query(
+      `SELECT prediction, COUNT(*) as count 
+       FROM predictions 
+       WHERE user_id = ? 
+       GROUP BY prediction`,
+      [userId]
+    );
+    
+    // Get stats by input type
+    const [inputTypeStats] = await db.query(
+      `SELECT input_type, COUNT(*) as count 
+       FROM predictions 
+       WHERE user_id = ? 
+       GROUP BY input_type`,
+      [userId]
+    );
+    
+    // Get daily stats
+    const [dailyStats] = await db.query(
       `SELECT 
-        COUNT(*) as total_predictions,
         DATE(created_at) as prediction_date,
         COUNT(*) as daily_count
        FROM predictions 
@@ -426,31 +536,28 @@ app.get('/api/predictions/stats', verifyToken, async (req, res) => {
       [userId]
     );
     
-    const [totalCount] = await db.query(
-      'SELECT COUNT(*) as total FROM predictions WHERE user_id = ?',
-      [userId]
-    );
-    
     res.json({
       success: true,
       data: {
-        total_predictions: totalCount[0].total,
-        daily_stats: stats
+        total_predictions: totalCount[0]?.total || 0,
+        prediction_types: typeStats,
+        input_types: inputTypeStats,
+        daily_stats: dailyStats
       },
       message: 'Prediction statistics retrieved successfully'
     });
     
   } catch (error) {
-    console.error('Error getting prediction stats:', error);
+    console.error('🚨 Error getting prediction stats:', error);
     res.status(500).json({
       success: false,
       message: 'Error retrieving prediction statistics',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
     });
   }
 });
 
-// **PERBAIKAN 10: Predict Endpoints**
+// **PERBAIKAN 10: Predict Endpoints - UPDATE UNTUK MENYIMPAN SESUAI SCHEMA**
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
@@ -470,12 +577,25 @@ app.post('/api/predict', verifyToken, async (req, res) => {
     );
 
     if (flaskResponse.status === 200) {
-      // Simpan hasil prediksi ke database
+      // Simpan hasil prediksi ke database dengan schema yang benar
       try {
         await db.query(
-          `INSERT INTO predictions (user_id, input_data, prediction_result, created_at, updated_at) 
-           VALUES (?, ?, ?, NOW(), NOW())`,
-          [userId, JSON.stringify(data), JSON.stringify(flaskResponse.data)]
+          `INSERT INTO predictions (user_id, snr, inputs, prediction, confidence, 
+                                   prediction_number, snr_normalized, quality_assessment, 
+                                   input_type, model_version, created_at) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [
+            userId,
+            data.snr || null,
+            JSON.stringify(data.inputs || data),
+            flaskResponse.data.prediction || 'Unknown',
+            flaskResponse.data.confidence || 0,
+            1, // prediction_number
+            data.snr_normalized || null,
+            'High', // quality_assessment
+            'Manual', // input_type
+            '2.0' // model_version
+          ]
         );
         console.log('✅ Prediction saved to database');
       } catch (saveError) {
@@ -539,12 +659,25 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
     });
 
     if (flaskResponse.status === 200) {
-      // Simpan hasil prediksi file ke database
+      // Simpan hasil prediksi file ke database dengan schema yang benar
       try {
         await db.query(
-          `INSERT INTO predictions (user_id, input_data, prediction_result, created_at, updated_at) 
-           VALUES (?, ?, ?, NOW(), NOW())`,
-          [userId, JSON.stringify({file: file.originalname}), JSON.stringify(flaskResponse.data)]
+          `INSERT INTO predictions (user_id, snr, inputs, prediction, confidence, 
+                                   prediction_number, snr_normalized, quality_assessment, 
+                                   input_type, model_version, created_at) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+          [
+            userId,
+            null, // snr
+            JSON.stringify({file: file.originalname}),
+            flaskResponse.data.prediction || 'File Prediction',
+            flaskResponse.data.confidence || 0,
+            1, // prediction_number
+            null, // snr_normalized
+            'High', // quality_assessment
+            'Excel File', // input_type
+            '2.0' // model_version
+          ]
         );
         console.log('✅ File prediction saved to database');
       } catch (saveError) {
