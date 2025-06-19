@@ -44,7 +44,7 @@ const Predict = () => {
         }
 
         console.log('🔍 Verifying token with backend...');
-        const response = await fetch('http://optipredict.my.id:5000/api/auth/check', {
+        const response = await fetch('/api/auth/check', {
           method: 'GET',
           headers: {
             'x-access-token': token,
@@ -229,7 +229,7 @@ const Predict = () => {
 
       console.log('📤 Sending prediction request...');
 
-      const response = await fetch('http://optipredict.my.id:5000/api/predict', {
+      const response = await fetch('/api/predict', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

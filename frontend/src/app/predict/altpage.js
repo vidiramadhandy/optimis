@@ -109,7 +109,7 @@ const AltPage = () => {
           return;
         }
 
-        const response = await fetch('http://optipredict.my.id:5000/api/auth/check', {
+        const response = await fetch('/api/auth/check', {
           headers: { 'x-access-token': token },
           credentials: 'include',
         });
@@ -377,8 +377,8 @@ const AltPage = () => {
 
       // Multiple endpoints with timeout and retry
       const endpoints = [
-        'http://optipredict.my.id:5000/api/predict-file',
-        'http://optipredict.my.id:5000/api/predict-file'
+        '/api/predict-file',
+        '/api/predict-file'
       ];
 
       let response = null;

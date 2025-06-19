@@ -36,7 +36,7 @@ const History = () => {
           setAuthStatus('unauthenticated');
           return;
         }
-        const response = await fetch('http://optipredict.my.id:5000/api/auth/check', {
+        const response = await fetch('/api/auth/check', {
           method: 'GET',
           headers: {
             'x-access-token': token,
@@ -77,7 +77,7 @@ const History = () => {
     try {
       setError(null);
       setIsLoading(true);
-      const response = await fetch('http://optipredict.my.id:5000/api/predictions?limit=20', {
+      const response = await fetch('/api/predictions?limit=20', {
         method: 'GET',
         headers: {
           'x-access-token': token,
@@ -143,7 +143,7 @@ const History = () => {
     try {
       setIsLoading(true);
       const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://optipredict.my.id:5000/api/predictions/all', {
+      const response = await fetch('/api/predictions/all', {
         method: 'DELETE',
         headers: {
           'x-access-token': token,
@@ -173,7 +173,7 @@ const History = () => {
     try {
       setDeleteLoading(prev => ({ ...prev, [predictionId]: true }));
       const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://optipredict.my.id:5000/api/prediction/${predictionId}`, {
+      const response = await fetch(`/api/prediction/${predictionId}`, {
         method: 'DELETE',
         headers: {
           'x-access-token': token,
