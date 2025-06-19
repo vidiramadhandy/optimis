@@ -557,6 +557,226 @@ app.get('/api/predictions/stats', verifyToken, async (req, res) => {
   }
 });
 
+// **PERBAIKAN BARU: TAMBAHKAN DELETE ENDPOINTS UNTUK HISTORY**
+
+// Delete prediction by ID (individual delete)
+app.delete('/api/prediction/:id', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const predictionId = parseInt(req.params.id);
+    
+    if (isNaN(predictionId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid prediction ID'
+      });
+    }
+    
+    console.log(`🗑️ Deleting prediction ${predictionId} for user ${userId}`);
+    
+    // Check if prediction exists and belongs to user
+    const [existing] = await db.query(
+      'SELECT id FROM predictions WHERE id = ? AND user_id = ?',
+      [predictionId, userId]
+    );
+    
+    if (existing.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Prediction not found or not authorized'
+      });
+    }
+    
+    // Delete the prediction
+    const [result] = await db.query(
+      'DELETE FROM predictions WHERE id = ? AND user_id = ?',
+      [predictionId, userId]
+    );
+    
+    if (result.affectedRows > 0) {
+      res.json({
+        success: true,
+        message: 'Prediction deleted successfully'
+      });
+    } else {
+      res.status(404).json({
+        success: false,
+        message: 'Prediction not found'
+      });
+    }
+    
+  } catch (error) {
+    console.error('🚨 Error deleting prediction:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting prediction',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+    });
+  }
+});
+
+// Delete all predictions for user (delete all history)
+app.delete('/api/predictions/all', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    
+    console.log(`🗑️ Deleting ALL predictions for user ${userId}`);
+    
+    // Get count before deletion for confirmation
+    const [countBefore] = await db.query(
+      'SELECT COUNT(*) as total FROM predictions WHERE user_id = ?',
+      [userId]
+    );
+    
+    const totalBefore = countBefore[0]?.total || 0;
+    
+    if (totalBefore === 0) {
+      return res.json({
+        success: true,
+        message: 'No predictions to delete',
+        deletedCount: 0
+      });
+    }
+    
+    // Delete all predictions for the user
+    const [result] = await db.query(
+      'DELETE FROM predictions WHERE user_id = ?',
+      [userId]
+    );
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.affectedRows} predictions`,
+      deletedCount: result.affectedRows
+    });
+    
+  } catch (error) {
+    console.error('🚨 Error deleting all predictions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting all predictions',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+    });
+  }
+});
+
+// Delete multiple predictions by IDs (batch delete)
+app.delete('/api/predictions/batch', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { predictionIds } = req.body;
+    
+    if (!predictionIds || !Array.isArray(predictionIds) || predictionIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'predictionIds array is required and must not be empty'
+      });
+    }
+    
+    // Validate all IDs are numbers
+    const validIds = predictionIds.filter(id => !isNaN(parseInt(id))).map(id => parseInt(id));
+    
+    if (validIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No valid prediction IDs provided'
+      });
+    }
+    
+    console.log(`🗑️ Batch deleting ${validIds.length} predictions for user ${userId}`);
+    
+    // Check which predictions exist and belong to user
+    const placeholders = validIds.map(() => '?').join(',');
+    const [existing] = await db.query(
+      `SELECT id FROM predictions WHERE id IN (${placeholders}) AND user_id = ?`,
+      [...validIds, userId]
+    );
+    
+    if (existing.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No predictions found or not authorized'
+      });
+    }
+    
+    // Delete the predictions
+    const [result] = await db.query(
+      `DELETE FROM predictions WHERE id IN (${placeholders}) AND user_id = ?`,
+      [...validIds, userId]
+    );
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.affectedRows} predictions`,
+      deletedCount: result.affectedRows,
+      requestedCount: validIds.length
+    });
+    
+  } catch (error) {
+    console.error('🚨 Error batch deleting predictions:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error batch deleting predictions',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+    });
+  }
+});
+
+// Delete predictions by date range
+app.delete('/api/predictions/range', verifyToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const { startDate, endDate } = req.body;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'startDate and endDate are required'
+      });
+    }
+    
+    console.log(`🗑️ Deleting predictions from ${startDate} to ${endDate} for user ${userId}`);
+    
+    // Get count before deletion
+    const [countBefore] = await db.query(
+      `SELECT COUNT(*) as total FROM predictions 
+       WHERE user_id = ? AND created_at BETWEEN ? AND ?`,
+      [userId, startDate, endDate]
+    );
+    
+    const totalBefore = countBefore[0]?.total || 0;
+    
+    if (totalBefore === 0) {
+      return res.json({
+        success: true,
+        message: 'No predictions found in the specified date range',
+        deletedCount: 0
+      });
+    }
+    
+    // Delete predictions in date range
+    const [result] = await db.query(
+      `DELETE FROM predictions 
+       WHERE user_id = ? AND created_at BETWEEN ? AND ?`,
+      [userId, startDate, endDate]
+    );
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.affectedRows} predictions from ${startDate} to ${endDate}`,
+      deletedCount: result.affectedRows
+    });
+    
+  } catch (error) {
+    console.error('🚨 Error deleting predictions by date range:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error deleting predictions by date range',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
+    });
+  }
+});
+
 // **PERBAIKAN 10: Predict Endpoints - UPDATE UNTUK MENYIMPAN SESUAI SCHEMA**
 app.post('/api/predict', verifyToken, async (req, res) => {
   try {
@@ -766,6 +986,7 @@ const server = app.listen(PORT, () => {
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
   console.log(`🔗 API Health: http://localhost:${PORT}/api/health`);
   console.log(`📊 Predictions API: http://localhost:${PORT}/api/predictions`);
+  console.log(`🗑️ Delete endpoints: DELETE /api/prediction/:id, DELETE /api/predictions/all`);
 });
 
 // Server timeouts

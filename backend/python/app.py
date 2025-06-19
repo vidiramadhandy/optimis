@@ -37,7 +37,7 @@ DB_CONFIG = {
 }
 
 # Path model dan scaler
-MODEL_PATH = os.path.join(os.path.dirname(__file__), 'catboost_model_2.cbm')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'catboost_model_final.cbm')
 SNR_SCALER_PATH = os.path.join(os.path.dirname(__file__), 'snr_minmax_scaler_untuk_prediksi.pkl')
 
 # Label prediksi
