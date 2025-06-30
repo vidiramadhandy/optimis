@@ -120,7 +120,7 @@ app.use((req, res, next) => {
   next();
 });
 
-const FLASK_ML_URL = 'http://20.189.116.138:5001';
+const FLASK_ML_URL = 'http://127.0.0.1:5001';
 
 const upload = multer({
   dest: 'uploads/',
