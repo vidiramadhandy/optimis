@@ -6,7 +6,7 @@ import ExcelJS from 'exceljs';
 import Navbar from '../../components/navbar';
 
 const AltPage = () => {
-  // State management
+  // SEMUA STATE TETAP SAMA - TIDAK ADA PERUBAHAN
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [results, setResults] = useState(null);
@@ -14,34 +14,26 @@ const AltPage = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
-
-  // File processing state
   const [isProcessing, setIsProcessing] = useState(false);
   const [processProgress, setProcessProgress] = useState(0);
   const [totalRows, setTotalRows] = useState(0);
   const [fileSize, setFileSize] = useState(0);
   const [processingStage, setProcessingStage] = useState('');
   const [isLargeDataset, setIsLargeDataset] = useState(false);
-
-  // Loading spinner and progress
   const [uploadProgress, setUploadProgress] = useState(0);
   const [predictionProgress, setPredictionProgress] = useState(0);
   const [estimatedTime, setEstimatedTime] = useState(0);
   const [startTime, setStartTime] = useState(null);
   const [elapsedTime, setElapsedTime] = useState(0);
-
-  // Network and error handling
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [networkError, setNetworkError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [maxRetries] = useState(3);
-
-  // For resetting upload area
   const [uploadAreaKey, setUploadAreaKey] = useState(Date.now());
 
   const router = useRouter();
 
-  // Error messages in English
+  // SEMUA ERROR MESSAGES TETAP SAMA - TIDAK ADA PERUBAHAN
   const ERROR_MESSAGES = {
     FILE_TOO_LARGE: (sizeMB) => `File too large (${sizeMB}MB). Maximum file size is 1GB.`,
     CSV_NOT_SUPPORTED: 'CSV files are not supported. Please upload an Excel file (.xlsx or .xls).',
@@ -63,7 +55,7 @@ const AltPage = () => {
     SERVER_ERROR: 'Server error occurred. Please try again later.'
   };
 
-  // Timer for elapsed time
+  // SEMUA useEffect TETAP SAMA - TIDAK ADA PERUBAHAN
   useEffect(() => {
     let interval = null;
     if (loading && startTime) {
@@ -76,7 +68,6 @@ const AltPage = () => {
     return () => clearInterval(interval);
   }, [loading, startTime]);
 
-  // Network status monitoring
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
@@ -99,7 +90,7 @@ const AltPage = () => {
     };
   }, []);
 
-  // Authentication check
+  // --> PERBAIKAN: Ubah endpoint auth check untuk menggunakan Express middleware
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -109,6 +100,7 @@ const AltPage = () => {
           return;
         }
 
+        // --> PERUBAHAN: Gunakan endpoint Express middleware yang benar
         const response = await fetch('/api/auth/check', {
           headers: { 'x-access-token': token },
           credentials: 'include',
@@ -135,9 +127,10 @@ const AltPage = () => {
     checkAuth();
   }, [router]);
 
-  // Check Flask service with multiple endpoints
+  // --> PERBAIKAN: Ubah checkFlaskService untuk menggunakan endpoint yang benar
   const checkFlaskService = async () => {
     const endpoints = [
+      '/api/health',  // --> PERUBAHAN: Gunakan endpoint Express middleware
       'http://localhost:5001/health',
       'http://optipredict.my.id:5001/health'
     ];
@@ -147,7 +140,7 @@ const AltPage = () => {
         console.log(`🔍 Checking Flask service at: ${endpoint}`);
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
         const response = await fetch(endpoint, {
           method: 'GET',
@@ -176,13 +169,13 @@ const AltPage = () => {
     return false;
   };
 
-  // Retry mechanism with exponential backoff
+  // SEMUA FUNGSI HELPER TETAP SAMA - TIDAK ADA PERUBAHAN
   const retryWithBackoff = async (fn, retries = maxRetries) => {
     try {
       return await fn();
     } catch (error) {
       if (retries > 0 && (error.name === 'AbortError' || error.message.includes('Failed to fetch'))) {
-        const delay = Math.pow(2, maxRetries - retries) * 1000; // Exponential backoff
+        const delay = Math.pow(2, maxRetries - retries) * 1000;
         console.log(`🔄 Retrying in ${delay/1000} seconds... (${maxRetries - retries + 1}/${maxRetries})`);
         
         setRetryCount(maxRetries - retries + 1);
@@ -194,14 +187,12 @@ const AltPage = () => {
     }
   };
 
-  // File processing function
   const processFile = useCallback(async (file) => {
     const fileExtension = file.name.split('.').pop().toLowerCase();
     const fileSizeMB = file.size / (1024 * 1024);
 
     setFileSize(file.size);
 
-    // Block CSV files
     if (fileExtension === 'csv') {
       setErrorMsg(ERROR_MESSAGES.CSV_NOT_SUPPORTED);
       setSelectedFile(null);
@@ -212,7 +203,7 @@ const AltPage = () => {
       return;
     }
 
-    if (file.size > 1000 * 1024 * 1024) { // 1GB limit
+    if (file.size > 1000 * 1024 * 1024) {
       setErrorMsg(ERROR_MESSAGES.FILE_TOO_LARGE(fileSizeMB.toFixed(1)));
       return;
     }
@@ -236,11 +227,8 @@ const AltPage = () => {
       }
 
       setTotalRows(rowCount);
-
-      // Estimate time based on row count
       const estimatedMinutes = Math.ceil(rowCount / 1000);
       setEstimatedTime(estimatedMinutes);
-
       setProcessingStage(`File processed successfully! ${rowCount.toLocaleString()} rows detected. Estimated processing time: ${estimatedMinutes} minutes.`);
       setProcessProgress(100);
 
@@ -251,7 +239,6 @@ const AltPage = () => {
     }
   }, []);
 
-  // Process Excel file
   const processExcel = useCallback(async (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -278,7 +265,6 @@ const AltPage = () => {
     });
   }, []);
 
-  // Handle file input
   const handleFileChange = useCallback((e) => {
     const file = e.target.files[0];
     if (file) {
@@ -288,7 +274,6 @@ const AltPage = () => {
     }
   }, [processFile]);
 
-  // Handle drag and drop
   const handleDrag = useCallback((e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -306,7 +291,6 @@ const AltPage = () => {
     }
   }, [processFile]);
 
-  // Reset state & upload area
   const handleUploadAgain = useCallback(() => {
     setSelectedFile(null);
     setUploadedFileName("");
@@ -325,7 +309,6 @@ const AltPage = () => {
     setUploadAreaKey(Date.now());
   }, []);
 
-  // Error recovery function
   const handleErrorRecovery = useCallback(() => {
     setErrorMsg('');
     setLoading(false);
@@ -336,7 +319,7 @@ const AltPage = () => {
     setRetryCount(0);
   }, []);
 
-  // Submit prediction with improved error handling
+  // --> PERBAIKAN UTAMA: Ubah endpoint untuk menggunakan Express middleware
   const handleConfirmPredict = async () => {
     if (!selectedFile) {
       setErrorMsg(ERROR_MESSAGES.NO_FILE_SELECTED);
@@ -362,6 +345,12 @@ const AltPage = () => {
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
+      
+      const userId = localStorage.getItem('user_id');
+      if (userId) {
+        formData.append('userId', userId);
+      }
+      
       const token = localStorage.getItem('auth_token');
 
       // Simulate upload progress
@@ -375,16 +364,15 @@ const AltPage = () => {
         });
       }, 200);
 
-      // Multiple endpoints with timeout and retry
+      // --> PERUBAHAN: Gunakan endpoint Express middleware yang benar
       const endpoints = [
-        '/api/predict-file',
-        '/api/predict-file'
+        '/api/predict-file',  // --> PERUBAHAN: Endpoint Express middleware
+        '/api/predict-file'   // --> PERUBAHAN: Backup endpoint yang sama
       ];
 
       let response = null;
       let lastError = null;
 
-      // Try each endpoint with timeout
       for (let i = 0; i < endpoints.length; i++) {
         try {
           console.log(`🔄 Trying endpoint ${i + 1}/${endpoints.length}: ${endpoints[i]}`);
@@ -393,7 +381,7 @@ const AltPage = () => {
           const timeoutId = setTimeout(() => {
             controller.abort();
             console.log(`⏰ Timeout for endpoint: ${endpoints[i]}`);
-          }, 600000); // 10 minutes timeout for large datasets
+          }, 600000);
 
           response = await fetch(endpoints[i], {
             method: 'POST',
@@ -448,9 +436,11 @@ const AltPage = () => {
       clearInterval(predictionInterval);
       setPredictionProgress(100);
 
+      // --> PERBAIKAN: Handle response structure dari Express middleware
       if (result.success) {
-        setResults(result.results);
-        setProcessingStage(`✅ Completed! Processed ${result.results.length.toLocaleString()} rows successfully.`);
+        const resultsData = result.data?.results || result.results;
+        setResults(resultsData);
+        setProcessingStage(`✅ Completed! Processed ${resultsData?.length?.toLocaleString() || 0} rows successfully.`);
       } else {
         setErrorMsg(result.message || ERROR_MESSAGES.PREDICTION_FAILED);
       }
@@ -469,7 +459,7 @@ const AltPage = () => {
     }
   };
 
-  // Format time
+  // SEMUA FUNGSI FORMAT DAN KOMPONEN TETAP SAMA - TIDAK ADA PERUBAHAN
   const formatTime = (milliseconds) => {
     const seconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(seconds / 60);
@@ -484,7 +474,6 @@ const AltPage = () => {
     }
   };
 
-  // Format file size
   const formatFileSize = (bytes) => {
     if (bytes === 0) return '0 Bytes';
     const k = 1024;
@@ -493,7 +482,6 @@ const AltPage = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Loading Spinner Component
   const LoadingSpinner = () => (
     <div className="flex flex-col items-center justify-center p-8">
       <div className="loader"></div>
@@ -548,7 +536,7 @@ const AltPage = () => {
     </div>
   );
 
-  // Loading state
+  // SEMUA RENDER TETAP SAMA - TIDAK ADA PERUBAHAN
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-bl from-gray-800 via-zinc-800 to-violet-950">
@@ -584,7 +572,7 @@ const AltPage = () => {
           Upload a file with columns: SNR, P1, P2, ..., P30 (format .xlsx or .xls)
         </p>
 
-        {/* Network Status Warning */}
+        {/* SEMUA WARNING DAN KONTEN TETAP SAMA */}
         {!isOnline && (
           <div className="mb-4 p-4 bg-red-100 text-red-800 rounded border border-red-300">
             <h4 className="font-bold mb-2">🔴 No Internet Connection</h4>
@@ -599,7 +587,6 @@ const AltPage = () => {
           </div>
         )}
 
-        {/* Large file warning */}
         <div className="mb-4 p-4 bg-amber-100 text-amber-800 rounded border border-amber-300">
           <h4 className="font-bold mb-2">⚠️ Important Notice:</h4>
           <ul className="text-sm space-y-1">
@@ -635,7 +622,6 @@ const AltPage = () => {
 
                   <label htmlFor="fileInput" className={`cursor-pointer ${isProcessing ? 'pointer-events-none' : ''}`}>
                     <div className="text-gray-500 mb-4 flex flex-col items-center">
-                      {/* FILE ICON */}
                       <svg className="mx-auto h-12 w-12 mb-4" fill="none" viewBox="0 0 48 48" stroke="currentColor">
                         <rect x="8" y="6" width="34" height="40" rx="4" fill="#e0e7ef" stroke="#64748b" strokeWidth="2"/>
                         <path d="M15 14h14M15 22h12M15 30h8" stroke="#64748b" strokeWidth="2" strokeLinecap="round"/>
@@ -651,7 +637,7 @@ const AltPage = () => {
                   </label>
                 </div>
 
-                {/* File info */}
+                {/* SEMUA KONTEN LAINNYA TETAP SAMA */}
                 {selectedFile && (
                   <div className="mt-4 p-4 bg-gray-50 rounded-lg">
                     <h4 className="font-semibold mb-2">📁 File Information:</h4>
@@ -669,7 +655,6 @@ const AltPage = () => {
                   </div>
                 )}
 
-                {/* Progress bar for file processing */}
                 {isProcessing && (
                   <div className="mt-6">
                     <div className="flex justify-between text-sm text-gray-600 mb-2">
@@ -688,7 +673,6 @@ const AltPage = () => {
                   </div>
                 )}
 
-                {/* Enhanced Error message */}
                 {errorMsg && (
                   <div className="mt-4 p-4 bg-red-100 text-red-700 rounded border border-red-300">
                     <div className="flex justify-between items-start">
@@ -727,7 +711,6 @@ const AltPage = () => {
                   </div>
                 )}
 
-                {/* Action buttons */}
                 <div className="flex justify-center gap-4 mt-6">
                   {selectedFile && totalRows > 0 && !isProcessing && (
                     <>
@@ -759,14 +742,13 @@ const AltPage = () => {
           </>
         )}
 
-        {/* Results */}
+        {/* SEMUA HASIL DAN STYLING TETAP SAMA */}
         {results && results.length > 0 && (
           <div className="mt-8">
             <h3 className="text-xl font-semibold mb-4">
               ✅ Prediction Complete! ({results.length.toLocaleString()} rows processed)
             </h3>
 
-            {/* Summary stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="text-center p-3 bg-green-50 rounded-lg">
                 <div className="text-2xl font-bold text-green-600">{results.length.toLocaleString()}</div>
@@ -792,7 +774,6 @@ const AltPage = () => {
               </div>
             </div>
 
-            {/* Sample results table */}
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="min-w-full text-sm border border-gray-300">
                 <thead className="sticky top-0 bg-gray-200">
@@ -858,6 +839,38 @@ const AltPage = () => {
           </div>
         )}
       </div>
+
+      <style jsx>{`
+        .loader {
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #3498db;
+          border-radius: 50%;
+          width: 50px;
+          height: 50px;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+
+        .btn-gradient {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .bg-gradient-animation {
+          background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+          background-size: 400% 400%;
+          animation: gradient 15s ease infinite;
+        }
+
+        @keyframes gradient {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
     </div>
   );
 };

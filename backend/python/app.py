@@ -1,6 +1,8 @@
 # app.py - Flask ML Service dengan BATCH PROCESSING OPTIMIZATION + HISTORY ENDPOINT
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+# --> TAMBAHAN IMPORT WAJIB UNTUK APACHE PROXY
+from werkzeug.middleware.proxy_fix import ProxyFix
 import mysql.connector
 from mysql.connector import pooling
 import numpy as np
@@ -16,9 +18,15 @@ from concurrent.futures import ThreadPoolExecutor
 import re
 
 app = Flask(__name__)
+
+# --> TAMBAHAN WAJIB: ProxyFix untuk Apache reverse proxy
+app.wsgi_app = ProxyFix(
+    app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1
+)
+
 CORS(app)
 
-# Konfigurasi Database dengan Connection Pool untuk XAMPP MySQL
+# SEMUA KONFIGURASI TETAP SAMA - TIDAK ADA PERUBAHAN
 DB_CONFIG = {
     'host': 'localhost',
     'port': 3306,
@@ -36,20 +44,12 @@ DB_CONFIG = {
     'connection_timeout': 30,
 }
 
-# Path model dan scaler
 MODEL_PATH = os.path.join(os.path.dirname(__file__), 'catboost_model_final.cbm')
 SNR_SCALER_PATH = os.path.join(os.path.dirname(__file__), 'snr_minmax_scaler_untuk_prediksi.pkl')
 
-# Label prediksi
 PREDICTION_LABELS = {
-    0: "Normal", 
-    1: "Fiber Tapping", 
-    2: "Bad Splice", 
-    3: "Bending Event",
-    4: "Dirty Connector", 
-    5: "Fiber Cut", 
-    6: "PC Connector", 
-    7: "Reflector"
+    0: "Normal", 1: "Fiber Tapping", 2: "Bad Splice", 3: "Bending Event",
+    4: "Dirty Connector", 5: "Fiber Cut", 6: "PC Connector", 7: "Reflector"
 }
 
 model = None
@@ -57,6 +57,7 @@ snr_scaler = None
 executor = ThreadPoolExecutor(max_workers=4)
 connection_pool = None
 
+# SEMUA FUNGSI HELPER TETAP SAMA - TIDAK ADA PERUBAHAN
 def init_connection_pool():
     global connection_pool
     try:
@@ -278,8 +279,14 @@ def get_next_prediction_number(user_id):
     finally:
         close_db_connection(conn, cursor)
 
-@app.route('/predict-file', methods=['POST'])
+# ===================================================================
+# == PERUBAHAN UTAMA: HANYA MENAMBAH /api/ DI DEPAN ENDPOINT ==
+# ===================================================================
+
+# --> PERUBAHAN: /predict-file menjadi /api/predict-file
+@app.route('/api/predict-file', methods=['POST'])
 def predict_file():
+    # SEMUA ISI FUNGSI TETAP SAMA - TIDAK ADA PERUBAHAN
     try:
         ensure_model_and_scaler()
         start_total_time = time.time()
@@ -441,8 +448,10 @@ def predict_file():
             'results': []
         }), 500
 
-@app.route('/predict', methods=['POST'])
+# --> PERUBAHAN: /predict menjadi /api/predict
+@app.route('/api/predict', methods=['POST'])
 def predict():
+    # SEMUA ISI FUNGSI TETAP SAMA - TIDAK ADA PERUBAHAN
     conn = None
     cursor = None
     try:
@@ -541,8 +550,10 @@ def predict():
     finally:
         close_db_connection(conn, cursor)
 
-@app.route('/predictions/<int:user_id>', methods=['GET'])
+# --> PERUBAHAN: Semua endpoint lainnya juga ditambah /api/
+@app.route('/api/predictions/<int:user_id>', methods=['GET'])
 def get_history(user_id):
+    # SEMUA ISI FUNGSI TETAP SAMA - TIDAK ADA PERUBAHAN
     conn = None
     cursor = None
     try:
@@ -626,12 +637,13 @@ def get_history(user_id):
     finally:
         close_db_connection(conn, cursor)
 
-@app.route('/history/<int:user_id>', methods=['GET'])
+@app.route('/api/history/<int:user_id>', methods=['GET'])
 def get_user_history(user_id):
     return get_history(user_id)
 
-@app.route('/predictions/count/<int:user_id>', methods=['GET'])
+@app.route('/api/predictions/count/<int:user_id>', methods=['GET'])
 def get_predictions_count(user_id):
+    # SEMUA ISI FUNGSI TETAP SAMA - TIDAK ADA PERUBAHAN
     conn = None
     cursor = None
     try:
@@ -654,8 +666,9 @@ def get_predictions_count(user_id):
     finally:
         close_db_connection(conn, cursor)
 
-@app.route('/predictions/all/<int:user_id>', methods=['DELETE'])
+@app.route('/api/predictions/all/<int:user_id>', methods=['DELETE'])
 def delete_all_predictions(user_id):
+    # SEMUA ISI FUNGSI TETAP SAMA - TIDAK ADA PERUBAHAN
     conn = None
     cursor = None
     try:
@@ -682,9 +695,9 @@ def delete_all_predictions(user_id):
     finally:
         close_db_connection(conn, cursor)
 
-# ENDPOINT BARU: DELETE PREDICTION INDIVIDUAL
-@app.route('/prediction/<int:prediction_id>', methods=['DELETE'])
+@app.route('/api/prediction/<int:prediction_id>', methods=['DELETE'])
 def delete_single_prediction(prediction_id):
+    # SEMUA ISI FUNGSI TETAP SAMA - TIDAK ADA PERUBAHAN
     conn = None
     cursor = None
     try:
@@ -761,7 +774,7 @@ def delete_single_prediction(prediction_id):
     finally:
         close_db_connection(conn, cursor)
 
-@app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
 def health_check():
     return jsonify({
         'success': True,
@@ -771,21 +784,22 @@ def health_check():
         'database': 'XAMPP MySQL',
         'optimization': 'Batch Processing Enabled',
         'endpoints': [
-            '/predict-file (POST)',
-            '/predict (POST)', 
-            '/predictions/<user_id> (GET)',
-            '/history/<user_id> (GET)',
-            '/predictions/count/<user_id> (GET)',
-            '/prediction/<prediction_id> (DELETE)',  # ENDPOINT BARU
-            '/predictions/all/<user_id> (DELETE)',
-            '/health (GET)',
-            '/test-db (GET)'
+            '/api/predict-file (POST)',
+            '/api/predict (POST)', 
+            '/api/predictions/<user_id> (GET)',
+            '/api/history/<user_id> (GET)',
+            '/api/predictions/count/<user_id> (GET)',
+            '/api/prediction/<prediction_id> (DELETE)',
+            '/api/predictions/all/<user_id> (DELETE)',
+            '/api/health (GET)',
+            '/api/test-db (GET)'
         ],
         'timestamp': datetime.now().isoformat()
     })
 
-@app.route('/test-db', methods=['GET'])
+@app.route('/api/test-db', methods=['GET'])
 def test_database():
+    # SEMUA ISI FUNGSI TETAP SAMA - TIDAK ADA PERUBAHAN
     conn = None
     cursor = None
     try:
@@ -830,7 +844,9 @@ if __name__ == '__main__':
         print("✅ Model dan scaler siap digunakan")
     else:
         print("❌ Model atau scaler gagal dimuat")
-    print("📡 OPTIMIZED Server akan berjalan di: http://localhost:5001")
+    
+    # --> PERUBAHAN: Jalankan di localhost untuk keamanan dengan Apache
+    print("📡 Server akan berjalan di: http://127.0.0.1:5001")
     print("🚀 OPTIMIZATIONS ENABLED:")
     print("   - Vectorized batch predictions")
     print("   - Optimized database batch inserts")
@@ -838,13 +854,13 @@ if __name__ == '__main__':
     print("   - Performance monitoring")
     print("📊 Expected performance: 125K rows in <5 minutes")
     print("📋 Available endpoints:")
-    print("   - POST /predict-file (batch prediction)")
-    print("   - POST /predict (single prediction)")
-    print("   - GET /predictions/<user_id> (history)")
-    print("   - GET /history/<user_id> (alternative history)")
-    print("   - GET /predictions/count/<user_id> (count)")
-    print("   - DELETE /prediction/<prediction_id> (delete single)")  # ENDPOINT BARU
-    print("   - DELETE /predictions/all/<user_id> (delete all)")
-    print("   - GET /health (health check)")
-    print("   - GET /test-db (database test)")
-    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)
+    print("   - POST /api/predict-file (batch prediction)")
+    print("   - POST /api/predict (single prediction)")
+    print("   - GET /api/predictions/<user_id> (history)")
+    print("   - GET /api/history/<user_id> (alternative history)")
+    print("   - GET /api/predictions/count/<user_id> (count)")
+    print("   - DELETE /api/prediction/<prediction_id> (delete single)")
+    print("   - DELETE /api/predictions/all/<user_id> (delete all)")
+    print("   - GET /api/health (health check)")
+    print("   - GET /api/test-db (database test)")
+    app.run(debug=True, host='127.0.0.1', port=5001, threaded=True)
