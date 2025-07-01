@@ -138,7 +138,7 @@ const AltPage = () => {
   // Check Flask service with multiple endpoints
   const checkFlaskService = async () => {
     const endpoints = [
-      '/ml/health'
+      '/api/health'
     ];
 
     for (const endpoint of endpoints) {
