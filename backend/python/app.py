@@ -278,7 +278,7 @@ def get_next_prediction_number(user_id):
     finally:
         close_db_connection(conn, cursor)
 
-@app.route('/predict-file', methods=['POST'])
+@app.route('/api/predict-file', methods=['POST'])
 def predict_file():
     try:
         ensure_model_and_scaler()
