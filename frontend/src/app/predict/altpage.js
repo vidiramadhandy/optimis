@@ -136,44 +136,44 @@ const AltPage = () => {
   }, [router]);
 
   // Check Flask service with multiple endpoints
-  // const checkFlaskService = async () => {
-  //   const endpoints = [
-  //     '/api/health'
-  //   ];
+  const checkFlaskService = async () => {
+    const endpoints = [
+      '/ml/health'
+    ];
 
-  //   for (const endpoint of endpoints) {
-  //     try {
-  //       console.log(`🔍 Checking Flask service at: ${endpoint}`);
+    for (const endpoint of endpoints) {
+      try {
+        console.log(`🔍 Checking Flask service at: ${endpoint}`);
         
-  //       const controller = new AbortController();
-  //       const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
 
-  //       const response = await fetch(endpoint, {
-  //         method: 'GET',
-  //         headers: { 'Content-Type': 'application/json' },
-  //         signal: controller.signal
-  //       });
+        const response = await fetch(endpoint, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
+        });
 
-  //       clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-  //       if (response.ok) {
-  //         const result = await response.json();
-  //         console.log(`✅ Flask service available at ${endpoint}:`, result);
-  //         return true;
-  //       } else {
-  //         console.log(`❌ Flask service at ${endpoint} returned error:`, response.status);
-  //       }
-  //     } catch (error) {
-  //       if (error.name === 'AbortError') {
-  //         console.log(`⏰ Timeout checking ${endpoint}`);
-  //       } else {
-  //         console.log(`❌ Flask service at ${endpoint} not reachable:`, error.message);
-  //       }
-  //     }
-  //   }
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ Flask service available at ${endpoint}:`, result);
+          return true;
+        } else {
+          console.log(`❌ Flask service at ${endpoint} returned error:`, response.status);
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          console.log(`⏰ Timeout checking ${endpoint}`);
+        } else {
+          console.log(`❌ Flask service at ${endpoint} not reachable:`, error.message);
+        }
+      }
+    }
 
-  //   return false;
-  // };
+    return false;
+  };
 
   // Retry mechanism with exponential backoff
   const retryWithBackoff = async (fn, retries = maxRetries) => {
