@@ -860,7 +860,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
     formData.append('userId', userId.toString());
 
     const flaskResponse = await axios.post(
-      `${FLASK_ML_URL}/predict-file`,
+      `${FLASK_ML_URL}/api/predict-file`,
       formData,
       {
         headers: {
