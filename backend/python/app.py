@@ -278,14 +278,16 @@ def get_next_prediction_number(user_id):
     finally:
         close_db_connection(conn, cursor)
 
-@app.route('/api/predict-file', methods=['POST'])
+@app.route('/predict-file', methods=['POST'])
 def predict_file():
     try:
         ensure_model_and_scaler()
         start_total_time = time.time()
         print("📤 Received file upload request")
+        
         user_id = get_user_id_from_request(request)
         print(f"📊 Processing file for user_id: {user_id}")
+        
         if 'file' not in request.files:
             print("❌ No file in request")
             return jsonify({
@@ -295,10 +297,13 @@ def predict_file():
                 'processed_rows': 0,
                 'results': []
             }), 400
+
         file = request.files['file']
         filename = file.filename.lower()
         original_filename = file.filename
         print(f"📊 Processing file: {original_filename}")
+
+        # File reading logic (sama seperti sebelumnya)
         try:
             read_start = time.time()
             if filename.endswith('.csv'):
@@ -308,10 +313,9 @@ def predict_file():
             elif filename.endswith('.xls'):
                 df = pd.read_excel(file, engine='xlrd')
             else:
-                error_msg = 'Format file tidak didukung (hanya .csv, .xlsx, .xls)'
                 return jsonify({
                     'success': False, 
-                    'message': error_msg,
+                    'message': 'Format file tidak didukung (hanya .csv, .xlsx, .xls)',
                     'total_rows': 0,
                     'processed_rows': 0,
                     'results': []
@@ -319,33 +323,36 @@ def predict_file():
             read_time = time.time() - read_start
             print(f"📊 File read completed in {read_time:.2f} seconds")
         except Exception as read_error:
-            error_msg = f'Error membaca file: {str(read_error)}'
-            print(f"❌ {error_msg}")
             return jsonify({
                 'success': False, 
-                'message': error_msg,
+                'message': f'Error membaca file: {str(read_error)}',
                 'total_rows': 0,
                 'processed_rows': 0,
                 'results': []
             }), 400
+
+        # Data processing logic (sama seperti sebelumnya)
         print(f"📊 Header asli: {list(df.columns)}")
         df = normalize_headers(df)
         print(f"📊 Header setelah normalisasi: {list(df.columns)}")
+        
         required_columns = ['snr'] + [f'p{i}' for i in range(1, 31)]
         missing_cols = [col for col in required_columns if col not in df.columns]
+        
         if missing_cols:
-            error_msg = f'Kolom berikut wajib ada: {missing_cols}'
-            print(f"❌ {error_msg}")
             return jsonify({
                 'success': False, 
-                'message': error_msg,
+                'message': f'Kolom berikut wajib ada: {missing_cols}',
                 'available_columns': list(df.columns),
                 'total_rows': len(df),
                 'processed_rows': 0,
                 'results': []
             }), 400
+
         df_filtered = df[required_columns].copy()
         print(f"📊 Jumlah baris data: {len(df_filtered)}")
+        
+        # Preprocessing
         preprocess_start = time.time()
         df_filtered = df_filtered.apply(pd.to_numeric, errors='coerce').fillna(0)
         snr_values = df_filtered['snr'].values
@@ -353,10 +360,13 @@ def predict_file():
         inputs_matrix = df_filtered[input_columns].values
         preprocess_time = time.time() - preprocess_start
         print(f"📊 Data preprocessing completed in {preprocess_time:.2f} seconds")
+
+        # Prediction
         prediction_start = time.time()
         predictions, confidences, snr_normalized = predict_batch_optimized(
             model, snr_scaler, snr_values, inputs_matrix
         )
+        
         if predictions is None:
             return jsonify({
                 'success': False,
@@ -365,8 +375,11 @@ def predict_file():
                 'processed_rows': 0,
                 'results': []
             }), 500
+        
         prediction_time = time.time() - prediction_start
         print(f"📊 Batch prediction completed in {prediction_time:.2f} seconds")
+
+        # Format results
         format_start = time.time()
         results = []
         for idx in range(len(predictions)):
@@ -379,6 +392,8 @@ def predict_file():
             })
         format_time = time.time() - format_start
         print(f"📊 Results formatting completed in {format_time:.2f} seconds")
+
+        # Database operations (sama seperti sebelumnya)
         db_start = time.time()
         if user_id:
             try:
@@ -399,6 +414,7 @@ def predict_file():
                         '2.0',
                         datetime.now()
                     ))
+                
                 batch_insert_success = batch_insert_predictions(user_id, predictions_data)
                 if batch_insert_success:
                     print(f"✅ Successfully saved {len(predictions_data)} predictions to database")
@@ -406,9 +422,13 @@ def predict_file():
                     print("⚠️ Database insertion failed, but predictions completed")
             except Exception as db_error:
                 print(f"❌ Database error (non-critical): {db_error}")
+        
         db_time = time.time() - db_start
         print(f"📊 Database operations completed in {db_time:.2f} seconds")
+
         total_time = time.time() - start_total_time
+
+        # PERBAIKAN: Response format yang konsisten
         response_data = {
             'success': True,
             'message': f'Berhasil memproses {len(results)} baris data dari file {original_filename} dalam {total_time:.2f} detik',
@@ -425,10 +445,12 @@ def predict_file():
                 'formatting': round(format_time, 2),
                 'database': round(db_time, 2)
             },
-            'results': results
+            'results': results  # Pastikan ini selalu array
         }
+
         print(f"✅ Successfully processed {len(results)} rows for user {user_id} in {total_time:.2f} seconds")
         return jsonify(response_data), 200
+
     except Exception as e:
         error_msg = str(e)
         print(f"❌ Error dalam predict_file: {error_msg}")

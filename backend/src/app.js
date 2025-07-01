@@ -838,6 +838,7 @@ app.post('/api/predict', verifyToken, async (req, res) => {
   }
 });
 
+// Perbaikan untuk endpoint /api/predict-file
 app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, res) => {
   try {
     const userId = req.userId;
@@ -846,7 +847,10 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
     if (!file) {
       return res.status(400).json({
         success: false,
-        message: 'File tidak ditemukan'
+        message: 'File tidak ditemukan',
+        results: [],
+        total_rows: 0,
+        processed_rows: 0
       });
     }
 
@@ -860,7 +864,7 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
     formData.append('userId', userId.toString());
 
     const flaskResponse = await axios.post(
-      `${FLASK_ML_URL}/api/predict-file`,
+      `${FLASK_ML_URL}/predict-file`,
       formData,
       {
         headers: {
@@ -879,7 +883,14 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
     });
 
     if (flaskResponse.status === 200) {
-      // Simpan hasil prediksi file ke database dengan schema yang benar
+      const flaskData = flaskResponse.data;
+      
+      // PERBAIKAN: Pastikan response format konsisten
+      const results = flaskData.results || [];
+      const totalRows = flaskData.total_rows || flaskData.processed_rows || results.length || 0;
+      const processedRows = flaskData.processed_rows || results.length || 0;
+      
+      // Simpan hasil prediksi file ke database
       try {
         await db.query(
           `INSERT INTO predictions (user_id, snr, inputs, prediction, confidence, 
@@ -889,9 +900,13 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
           [
             userId,
             null, // snr
-            JSON.stringify({file: file.originalname}),
-            flaskResponse.data.prediction || 'File Prediction',
-            flaskResponse.data.confidence || 0,
+            JSON.stringify({
+              file: file.originalname,
+              total_rows: totalRows,
+              processed_rows: processedRows
+            }),
+            `File Prediction: ${processedRows} rows processed`,
+            flaskData.confidence || 95,
             1, // prediction_number
             null, // snr_normalized
             'High', // quality_assessment
@@ -904,15 +919,27 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
         console.error('Error saving file prediction to database:', saveError);
       }
       
+      // PERBAIKAN: Format response yang konsisten untuk frontend
       res.json({
         success: true,
-        data: flaskResponse.data,
-        message: 'Prediksi file berhasil'
+        results: results, // Pastikan ini selalu array
+        total_rows: totalRows,
+        processed_rows: processedRows,
+        valid_rows: processedRows,
+        error_rows: 0,
+        user_id: userId,
+        message: flaskData.message || `Prediksi file berhasil: ${processedRows} rows diproses`,
+        processing_time: flaskData.processing_time || {},
+        // Backward compatibility
+        data: flaskData
       });
     } else {
       res.status(flaskResponse.status).json({
         success: false,
-        message: flaskResponse.data?.message || 'Prediksi file gagal'
+        message: flaskResponse.data?.message || 'Prediksi file gagal',
+        results: [],
+        total_rows: 0,
+        processed_rows: 0
       });
     }
 
@@ -927,10 +954,15 @@ app.post('/api/predict-file', verifyToken, upload.single('file'), async (req, re
 
     res.status(500).json({
       success: false,
-      message: 'Error internal server saat memproses file'
+      message: 'Error internal server saat memproses file',
+      results: [],
+      total_rows: 0,
+      processed_rows: 0,
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
     });
   }
 });
+
 
 // **PERBAIKAN 11: Error Handling Middleware**
 app.use((err, req, res, next) => {
