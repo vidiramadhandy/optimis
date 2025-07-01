@@ -31,7 +31,7 @@ const AltPage = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
 
   // Network and error handling
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
   const [networkError, setNetworkError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [maxRetries] = useState(3);
@@ -63,6 +63,76 @@ const AltPage = () => {
     SERVER_ERROR: 'Server error occurred. Please try again later.'
   };
 
+  // **PERBAIKAN: Helper function untuk validasi response yang lebih robust**
+  const validatePredictionResponse = (result) => {
+    console.log('🔍 Full response structure:', JSON.stringify(result, null, 2));
+    
+    // Null/undefined check
+    if (!result || typeof result !== 'object') {
+      console.warn('⚠️ Response is null, undefined, or not an object:', result);
+      return { 
+        valid: false, 
+        results: [], 
+        message: 'Invalid response format',
+        totalRows: 0 
+      };
+    }
+    
+    // Success check
+    if (result.success !== true) {
+      console.warn('⚠️ Response indicates failure:', result.success);
+      return { 
+        valid: false, 
+        results: [], 
+        message: result.message || 'Prediction failed',
+        totalRows: 0
+      };
+    }
+    
+    // Safe results extraction dengan multiple fallbacks
+    let results = [];
+    
+    try {
+      // Coba berbagai kemungkinan struktur response
+      if (Array.isArray(result.results)) {
+        results = result.results;
+      } else if (result.data && Array.isArray(result.data.results)) {
+        results = result.data.results;
+      } else if (Array.isArray(result.data)) {
+        results = result.data;
+      } else if (result.predictions && Array.isArray(result.predictions)) {
+        results = result.predictions;
+      } else {
+        console.warn('⚠️ No valid results array found in response');
+        results = [];
+      }
+    } catch (extractError) {
+      console.error('❌ Error extracting results:', extractError);
+      results = [];
+    }
+    
+    // Safe numeric extraction
+    const totalRows = parseInt(result.total_rows || result.processed_rows || results.length || 0);
+    const processedRows = parseInt(result.processed_rows || result.valid_rows || results.length || 0);
+    
+    console.log('✅ Validation successful:', {
+      resultsLength: results.length,
+      totalRows: totalRows,
+      processedRows: processedRows,
+      resultsType: typeof results,
+      isArray: Array.isArray(results)
+    });
+    
+    return {
+      valid: true,
+      results: results,
+      message: result.message || 'Prediction successful',
+      totalRows: totalRows,
+      processedRows: processedRows,
+      processingTime: result.processing_time || {}
+    };
+  };
+
   // Timer for elapsed time
   useEffect(() => {
     let interval = null;
@@ -78,6 +148,8 @@ const AltPage = () => {
 
   // Network status monitoring
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
     const handleOnline = () => {
       setIsOnline(true);
       setNetworkError(false);
@@ -146,7 +218,7 @@ const AltPage = () => {
         console.log(`🔍 Checking Flask service at: ${endpoint}`);
         
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 seconds timeout
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
 
         const response = await fetch(endpoint, {
           method: 'GET',
@@ -181,7 +253,7 @@ const AltPage = () => {
       return await fn();
     } catch (error) {
       if (retries > 0 && (error.name === 'AbortError' || error.message.includes('Failed to fetch'))) {
-        const delay = Math.pow(2, maxRetries - retries) * 1000; // Exponential backoff
+        const delay = Math.pow(2, maxRetries - retries) * 1000;
         console.log(`🔄 Retrying in ${delay/1000} seconds... (${maxRetries - retries + 1}/${maxRetries})`);
         
         setRetryCount(maxRetries - retries + 1);
@@ -335,7 +407,7 @@ const AltPage = () => {
     setRetryCount(0);
   }, []);
 
-  // Submit prediction with improved error handling
+  // **PERBAIKAN: Submit prediction dengan improved error handling dan response validation**
   const handleConfirmPredict = async () => {
     if (!selectedFile) {
       setErrorMsg(ERROR_MESSAGES.NO_FILE_SELECTED);
@@ -376,7 +448,6 @@ const AltPage = () => {
 
       // Multiple endpoints with timeout and retry
       const endpoints = [
-        '/api/predict-file',
         '/api/predict-file'
       ];
 
@@ -443,17 +514,50 @@ const AltPage = () => {
         });
       }, 1000);
 
-      const result = await response.json();
+      let result;
+      try {
+        const responseText = await response.text();
+        console.log('🔍 Raw response:', responseText);
+        
+        if (!responseText) {
+          throw new Error('Empty response from server');
+        }
+        
+        result = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ JSON parse error:', parseError);
+        throw new Error('Invalid JSON response from server');
+      }
+
       clearInterval(predictionInterval);
       setPredictionProgress(100);
 
-      if (result.success) {
-        setResults(result.results);
-        setProcessingStage(`✅ Completed! Processed ${result.results.length.toLocaleString()} rows successfully.`);
-      } else {
-        setErrorMsg(result.message || ERROR_MESSAGES.PREDICTION_FAILED);
+      console.log('🔍 Parsed response:', result);
+
+      // **PERBAIKAN: Safe validation dengan try-catch**
+      let validation;
+      try {
+        validation = validatePredictionResponse(result);
+      } catch (validationError) {
+        console.error('❌ Validation error:', validationError);
+        validation = {
+          valid: false,
+          results: [],
+          message: 'Error validating response',
+          totalRows: 0
+        };
       }
+      
+      if (validation.valid && Array.isArray(validation.results)) {
+        setResults(validation.results);
+        const count = validation.results.length || 0;
+        setProcessingStage(`✅ Completed! Processed ${count.toLocaleString()} rows successfully.`);
+      } else {
+        setErrorMsg(validation.message || 'Unknown error occurred');
+      }
+
     } catch (err) {
+      console.error('❌ Prediction error:', err);
       if (err.name === 'AbortError') {
         setErrorMsg(ERROR_MESSAGES.CONNECTION_TIMEOUT);
       } else if (err.message.includes('Failed to fetch')) {
@@ -461,7 +565,6 @@ const AltPage = () => {
       } else {
         setErrorMsg(err.message || ERROR_MESSAGES.PREDICTION_FAILED);
       }
-      console.error('Prediction error:', err);
     } finally {
       setLoading(false);
       setStartTime(null);
@@ -758,40 +861,42 @@ const AltPage = () => {
           </>
         )}
 
-        {/* Results */}
-        {results && results.length > 0 && (
+        {/* **PERBAIKAN: Results dengan safe array handling** */}
+        {results && Array.isArray(results) && results.length > 0 && (
           <div className="mt-8">
             <h3 className="text-xl font-semibold mb-4">
-              ✅ Prediction Complete! ({results.length.toLocaleString()} rows processed)
+              ✅ Prediction Complete! ({(results?.length || 0).toLocaleString()} rows processed)
             </h3>
 
-            {/* Summary stats */}
+            {/* Summary stats dengan safe access */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="text-center p-3 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{results.length.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-green-600">
+                  {(results?.length || 0).toLocaleString()}
+                </div>
                 <div className="text-sm text-gray-600">Total Predictions</div>
               </div>
               <div className="text-center p-3 bg-blue-50 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">
-                  {results.filter(r => r.prediction === 'Normal').length.toLocaleString()}
+                  {(results?.filter(r => r?.prediction === 'Normal')?.length || 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600">Normal</div>
               </div>
               <div className="text-center p-3 bg-yellow-50 rounded-lg">
                 <div className="text-2xl font-bold text-yellow-600">
-                  {results.filter(r => r.prediction && r.prediction !== 'Normal').length.toLocaleString()}
+                  {(results?.filter(r => r?.prediction && r.prediction !== 'Normal')?.length || 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600">Faults Detected</div>
               </div>
               <div className="text-center p-3 bg-red-50 rounded-lg">
                 <div className="text-2xl font-bold text-red-600">
-                  {results.filter(r => r.error).length.toLocaleString()}
+                  {(results?.filter(r => r?.error)?.length || 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-gray-600">Errors</div>
               </div>
             </div>
 
-            {/* Sample results table */}
+            {/* Table dengan safe rendering */}
             <div className="overflow-x-auto max-h-96 overflow-y-auto">
               <table className="min-w-full text-sm border border-gray-300">
                 <thead className="sticky top-0 bg-gray-200">
@@ -804,25 +909,27 @@ const AltPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {results.slice(0, 100).map((row, idx) => (
+                  {(results || []).slice(0, 100).map((row, idx) => (
                     <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                      <td className="border border-gray-300 p-2 text-center">{row.row}</td>
+                      <td className="border border-gray-300 p-2 text-center">
+                        {row?.row || idx + 1}
+                      </td>
                       <td className="border border-gray-300 p-2">
                         <span className={`px-2 py-1 rounded text-xs ${
-                          row.prediction === 'Normal' ? 'bg-green-100 text-green-800' :
-                          row.prediction ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
+                          row?.prediction === 'Normal' ? 'bg-green-100 text-green-800' :
+                          row?.prediction ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {row.prediction || 'N/A'}
+                          {row?.prediction || 'N/A'}
                         </span>
                       </td>
                       <td className="border border-gray-300 p-2 text-center">
-                        {row.confidence !== undefined ? `${row.confidence}%` : '-'}
+                        {row?.confidence !== undefined ? `${row.confidence}%` : '-'}
                       </td>
                       <td className="border border-gray-300 p-2 text-center">
-                        {row.snr_raw !== undefined ? row.snr_raw : '-'}
+                        {row?.snr_raw !== undefined ? row.snr_raw : '-'}
                       </td>
                       <td className="border border-gray-300 p-2 text-center">
-                        {row.error ? (
+                        {row?.error ? (
                           <span className="text-red-500 text-xs">Error</span>
                         ) : (
                           <span className="text-green-500 text-xs">✓</span>
@@ -834,9 +941,11 @@ const AltPage = () => {
               </table>
             </div>
 
-            {results.length > 100 && (
+            {(results?.length || 0) > 100 && (
               <div className="mt-4 p-3 bg-blue-100 text-blue-800 rounded text-center">
-                <p className="text-sm">Showing first 100 results of {results.length.toLocaleString()} total predictions.</p>
+                <p className="text-sm">
+                  Showing first 100 results of {(results?.length || 0).toLocaleString()} total predictions.
+                </p>
               </div>
             )}
 
